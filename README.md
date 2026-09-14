@@ -8,9 +8,10 @@ This repository is being implemented in milestones. Milestone 1 contains only th
 
 - Backend: Python, Django, Django REST Framework
 - Frontend: React, TypeScript, Vite
+- Database: PostgreSQL with pgvector via Docker Compose
 - Local development CORS configured for Vite on port `5173`
 
-PostgreSQL, pgvector, Ollama, embeddings, authentication, PDF processing, and RAG workflows are intentionally not configured yet.
+Ollama, embeddings, authentication, PDF processing, and RAG workflows are intentionally not configured yet.
 
 ## Project Structure
 
@@ -36,6 +37,40 @@ The API health endpoint is available at:
 
 ```text
 http://localhost:8000/api/health/
+```
+
+The database health endpoint is available at:
+
+```text
+http://localhost:8000/api/health/database/
+```
+
+## Database Setup
+
+Create `backend/.env` from `backend/.env.example`, then start PostgreSQL:
+
+```powershell
+docker compose --env-file backend/.env up -d postgres
+```
+
+Run Django migrations:
+
+```powershell
+cd backend
+.\.venv\Scripts\Activate.ps1
+python manage.py migrate
+```
+
+Stop the database:
+
+```powershell
+docker compose --env-file backend/.env down
+```
+
+Stop the database and remove the local database volume:
+
+```powershell
+docker compose --env-file backend/.env down -v
 ```
 
 ## Frontend Setup

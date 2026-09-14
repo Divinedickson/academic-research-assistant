@@ -9,4 +9,8 @@ class HealthCheckTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()['status'], 'ok')
 
-# Create your tests here.
+    def test_database_health_check_returns_ok(self):
+        response = self.client.get(reverse('api-database-health'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['database'], 'available')

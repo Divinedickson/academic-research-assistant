@@ -1,0 +1,25 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg17
+    container_name: academic-research-assistant-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-academic_research_assistant}
+      POSTGRES_USER: ${POSTGRES_USER:-academic_research_assistant}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-academic_research_assistant_dev_password}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U ${POSTGRES_USER:-academic_research_assistant} -d ${POSTGRES_DB:-academic_research_assistant}",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:

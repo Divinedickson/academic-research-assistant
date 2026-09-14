@@ -1,3 +1,4 @@
+from django.db import connection
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 
@@ -6,4 +7,11 @@ from rest_framework.response import Response
 def health_check(request):
     return Response({'status': 'ok', 'service': 'academic-research-assistant-api'})
 
-# Create your views here.
+
+@api_view(['GET'])
+def database_health_check(request):
+    with connection.cursor() as cursor:
+        cursor.execute('SELECT 1')
+        cursor.fetchone()
+
+    return Response({'status': 'ok', 'database': 'available'})

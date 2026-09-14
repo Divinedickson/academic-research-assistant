@@ -17,9 +17,10 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import path
 
-from core.views import health_check
+from core.views import database_health_check, health_check
 
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/health/', health_check, name='api-health'),
+    path('api/health/database/', database_health_check, name='api-database-health'),
 ]
