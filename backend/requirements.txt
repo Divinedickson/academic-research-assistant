@@ -6,6 +6,7 @@ djangorestframework_simplejwt==5.5.1
 psycopg==3.2.13
 psycopg-binary==3.2.13
 PyJWT==2.14.0
+PyMuPDF==1.26.7
 python-dotenv==1.1.1
 sqlparse==0.6.0
 tzdata==2026.4

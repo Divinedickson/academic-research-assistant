@@ -143,6 +143,8 @@ MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
 DOCUMENT_UPLOAD_MAX_BYTES = int(os.environ.get('DOCUMENT_UPLOAD_MAX_BYTES', 10 * 1024 * 1024))
+DOCUMENT_CHUNK_SIZE = int(os.environ.get('DOCUMENT_CHUNK_SIZE', 1000))
+DOCUMENT_CHUNK_OVERLAP = int(os.environ.get('DOCUMENT_CHUNK_OVERLAP', 200))
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field

@@ -2,7 +2,7 @@
 
 A full-stack research assistant for academic literature. The application will let users upload legally obtained or open-access academic PDFs, ask questions about their contents, and receive grounded answers with citations.
 
-This repository is being implemented in milestones. Milestone 4 adds authenticated research collections and PDF uploads.
+This repository is being implemented in milestones. Milestone 5 adds PDF text extraction and page-aware chunking.
 
 ## Current Stack
 
@@ -11,7 +11,7 @@ This repository is being implemented in milestones. Milestone 4 adds authenticat
 - Database: PostgreSQL with pgvector via Docker Compose
 - Local development CORS configured for Vite on port `5173`
 
-Text extraction, embeddings, retrieval, conversations, RAG workflows, and LLM integrations are intentionally not configured yet.
+Embeddings, retrieval, conversations, RAG workflows, OCR, and LLM integrations are intentionally not configured yet. A free external LLM API will be added later behind a replaceable provider interface.
 
 ## Project Structure
 
@@ -66,9 +66,21 @@ GET    /api/collections/{collection_id}/documents/
 POST   /api/collections/{collection_id}/documents/
 GET    /api/documents/{id}/
 DELETE /api/documents/{id}/
+POST   /api/documents/{id}/process/
+GET    /api/documents/{id}/chunks/
 ```
 
 PDF uploads use `multipart/form-data`, require authentication, and are limited by `DOCUMENT_UPLOAD_MAX_BYTES`.
+
+## PDF Processing
+
+PDF processing is synchronous in this milestone. Before production, background processing should be considered so large uploads do not tie up web requests.
+
+Processing uses PyMuPDF to extract text one page at a time. Page numbers are stored with one-based numbering so later citations can point back to the original PDF page.
+
+Chunking stays within each page. The default chunk size is `DOCUMENT_CHUNK_SIZE=1000` characters with `DOCUMENT_CHUNK_OVERLAP=200` characters. The chunker prefers paragraph, sentence, line, or word boundaries when practical, then falls back to a hard character limit for very long paragraphs. It always advances after each chunk to avoid infinite loops and skips empty chunks.
+
+Scanned or image-only PDFs are unsupported until OCR is added. Those documents are marked `failed` with a safe user-facing error message.
 
 ## Database Setup
 
@@ -122,6 +134,14 @@ Copy-Item frontend\.env.example frontend\.env
 ```
 
 Never commit real `.env` files.
+
+Useful backend environment settings:
+
+```env
+DOCUMENT_UPLOAD_MAX_BYTES=10485760
+DOCUMENT_CHUNK_SIZE=1000
+DOCUMENT_CHUNK_OVERLAP=200
+```
 
 ## Token Storage
 

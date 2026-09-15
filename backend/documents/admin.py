@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import Document, ResearchCollection
+from .models import Document, DocumentChunk, ResearchCollection
 
 
 @admin.register(ResearchCollection)
@@ -18,7 +18,15 @@ class DocumentAdmin(admin.ModelAdmin):
         'original_filename',
         'file_size',
         'processing_status',
+        'page_count',
         'uploaded_at',
     ]
     search_fields = ['title', 'original_filename', 'collection__name']
     list_filter = ['processing_status', 'uploaded_at']
+
+
+@admin.register(DocumentChunk)
+class DocumentChunkAdmin(admin.ModelAdmin):
+    list_display = ['document', 'page_number', 'chunk_index', 'character_count', 'created_at']
+    search_fields = ['document__title', 'content']
+    list_filter = ['page_number', 'created_at']

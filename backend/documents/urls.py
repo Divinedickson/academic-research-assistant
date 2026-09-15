@@ -1,7 +1,13 @@
 from django.urls import path
 from rest_framework.routers import SimpleRouter
 
-from .views import CollectionDocumentListCreateView, DocumentDetailView, ResearchCollectionViewSet
+from .views import (
+    CollectionDocumentListCreateView,
+    DocumentChunkListView,
+    DocumentDetailView,
+    DocumentProcessView,
+    ResearchCollectionViewSet,
+)
 
 
 router = SimpleRouter()
@@ -14,5 +20,7 @@ urlpatterns = [
         name='collection-documents',
     ),
     path('documents/<int:pk>/', DocumentDetailView.as_view(), name='document-detail'),
+    path('documents/<int:pk>/process/', DocumentProcessView.as_view(), name='document-process'),
+    path('documents/<int:pk>/chunks/', DocumentChunkListView.as_view(), name='document-chunks'),
     *router.urls,
 ]

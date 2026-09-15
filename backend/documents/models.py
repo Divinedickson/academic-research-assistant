@@ -3,6 +3,7 @@ from pathlib import Path
 
 from django.conf import settings
 from django.db import models
+from django.utils import timezone
 
 
 def document_upload_path(instance, filename):
@@ -51,6 +52,9 @@ class Document(models.Model):
         choices=ProcessingStatus.choices,
         default=ProcessingStatus.UPLOADED,
     )
+    page_count = models.PositiveIntegerField(default=0)
+    processed_at = models.DateTimeField(null=True, blank=True)
+    processing_error = models.TextField(blank=True)
     uploaded_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -69,4 +73,52 @@ class Document(models.Model):
 
         return result
 
-# Create your models here.
+    def mark_processing(self):
+        self.processing_status = self.ProcessingStatus.PROCESSING
+        self.processing_error = ''
+        self.save(update_fields=['processing_status', 'processing_error'])
+
+    def mark_ready(self, page_count):
+        self.processing_status = self.ProcessingStatus.READY
+        self.page_count = page_count
+        self.processing_error = ''
+        self.processed_at = timezone.now()
+        self.save(
+            update_fields=[
+                'processing_status',
+                'page_count',
+                'processing_error',
+                'processed_at',
+            ],
+        )
+
+    def mark_failed(self, message):
+        self.processing_status = self.ProcessingStatus.FAILED
+        self.processing_error = message
+        self.processed_at = timezone.now()
+        self.save(update_fields=['processing_status', 'processing_error', 'processed_at'])
+
+
+class DocumentChunk(models.Model):
+    document = models.ForeignKey(
+        Document,
+        on_delete=models.CASCADE,
+        related_name='chunks',
+    )
+    page_number = models.PositiveIntegerField()
+    chunk_index = models.PositiveIntegerField()
+    content = models.TextField()
+    character_count = models.PositiveIntegerField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['document_id', 'chunk_index']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['document', 'chunk_index'],
+                name='unique_chunk_index_per_document',
+            ),
+        ]
+
+    def __str__(self):
+        return f'{self.document_id}:{self.chunk_index}'

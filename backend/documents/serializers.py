@@ -3,7 +3,7 @@ from pathlib import Path
 from django.conf import settings
 from rest_framework import serializers
 
-from .models import Document, ResearchCollection
+from .models import Document, DocumentChunk, ResearchCollection
 
 
 class ResearchCollectionSerializer(serializers.ModelSerializer):
@@ -26,6 +26,9 @@ class DocumentSerializer(serializers.ModelSerializer):
             'original_filename',
             'file_size',
             'processing_status',
+            'page_count',
+            'processed_at',
+            'processing_error',
             'uploaded_at',
         ]
         read_only_fields = [
@@ -34,6 +37,9 @@ class DocumentSerializer(serializers.ModelSerializer):
             'original_filename',
             'file_size',
             'processing_status',
+            'page_count',
+            'processed_at',
+            'processing_error',
             'uploaded_at',
         ]
         extra_kwargs = {
@@ -73,3 +79,10 @@ class DocumentSerializer(serializers.ModelSerializer):
             original_filename=uploaded_file.name,
             file_size=uploaded_file.size,
         )
+
+
+class DocumentChunkSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = DocumentChunk
+        fields = ['page_number', 'chunk_index', 'content', 'character_count']
+        read_only_fields = fields

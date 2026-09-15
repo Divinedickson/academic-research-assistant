@@ -4,7 +4,7 @@ This repository is being built milestone by milestone. Keep changes scoped to th
 
 ## Current Milestone
 
-Milestone 4 adds research collections and PDF uploads:
+Milestone 5 adds PDF text extraction and page-aware chunking:
 
 - Django backend in `backend/`
 - React TypeScript Vite frontend in `frontend/`
@@ -21,10 +21,15 @@ Milestone 4 adds research collections and PDF uploads:
 - Documents app with owner-scoped research collections
 - Authenticated PDF upload endpoints with validation and stored-file cleanup
 - Dashboard collection management and collection detail upload UI
+- PyMuPDF text extraction with one-based page numbers
+- Page-local `DocumentChunk` records
+- Synchronous document processing endpoint at `/api/documents/{id}/process/`
+- Read-only chunk endpoint at `/api/documents/{id}/chunks/`
+- Collection detail process controls and chunk preview
 
 ## Guardrails
 
-- Do not add text extraction, chunking, embedding, retrieval, LLM, PDF processing beyond upload validation/storage, conversations, or RAG workflows until those milestones are approved.
+- Do not add embeddings, vector similarity search, retrieval, LLM integration, question answering, conversations, OCR, Celery, or RAG workflows until those milestones are approved.
 - Do not commit `.env` files, uploaded PDFs, model weights, virtual environments, `node_modules`, or generated build outputs.
 - Preserve provider boundaries in future RAG milestones so LLM and embedding providers remain replaceable.
 - Keep ownership and citation requirements central when later adding user data and document retrieval.
