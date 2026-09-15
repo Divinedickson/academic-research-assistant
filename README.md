@@ -45,6 +45,15 @@ The database health endpoint is available at:
 http://localhost:8000/api/health/database/
 ```
 
+Authentication endpoints:
+
+```text
+POST /api/auth/register/
+POST /api/auth/login/
+POST /api/auth/token/refresh/
+GET  /api/auth/me/
+```
+
 ## Database Setup
 
 Create `backend/.env` from `backend/.env.example`, then start PostgreSQL:
@@ -97,3 +106,9 @@ Copy-Item frontend\.env.example frontend\.env
 ```
 
 Never commit real `.env` files.
+
+## Token Storage
+
+The frontend keeps the short-lived access token in memory. The refresh token is stored in `localStorage` so a page refresh can restore the session through `/api/auth/token/refresh/`.
+
+This follows the normal Simple JWT JSON response flow and avoids adding a custom cookie/CSRF system in this milestone. The tradeoff is that `localStorage` can be exposed by cross-site scripting bugs, so future frontend work should keep user-generated HTML out of the DOM and revisit HttpOnly refresh-token cookies before production.
