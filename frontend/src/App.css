@@ -241,6 +241,11 @@ code {
   margin: 0 0 6px;
 }
 
+.item-row > div:first-child {
+  flex: 1;
+  min-width: 0;
+}
+
 .item-row small {
   color: #64748b;
 }
@@ -271,6 +276,30 @@ code {
 .button.danger {
   border-color: #f1b4b4;
   color: #9b2c2c;
+}
+
+.status-note {
+  font-size: 14px;
+}
+
+.chunk-preview {
+  display: grid;
+  gap: 12px;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid #d8dee8;
+}
+
+.chunk-preview section {
+  padding: 12px;
+  border: 1px solid #d8dee8;
+  border-radius: 6px;
+  background: #f7f9fc;
+}
+
+.chunk-preview p {
+  margin: 8px 0 0;
+  white-space: pre-wrap;
 }
 
 @media (max-width: 640px) {

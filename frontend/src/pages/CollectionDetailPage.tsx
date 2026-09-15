@@ -3,10 +3,13 @@ import { Link, useParams } from 'react-router-dom'
 import { ApiError } from '../api/client'
 import {
   type Document,
+  type DocumentChunk,
   type ResearchCollection,
   deleteDocument,
   getCollection,
+  listDocumentChunks,
   listDocuments,
+  processDocument,
   uploadDocument,
 } from '../api/documents'
 
@@ -40,6 +43,9 @@ export function CollectionDetailPage() {
   const [error, setError] = useState('')
   const [isLoading, setIsLoading] = useState(true)
   const [isUploading, setIsUploading] = useState(false)
+  const [processingDocumentId, setProcessingDocumentId] = useState<number | null>(null)
+  const [expandedDocumentId, setExpandedDocumentId] = useState<number | null>(null)
+  const [chunksByDocumentId, setChunksByDocumentId] = useState<Record<number, DocumentChunk[]>>({})
 
   const loadCollection = useCallback(async () => {
     try {
@@ -96,6 +102,55 @@ export function CollectionDetailPage() {
     try {
       await deleteDocument(document.id)
       setDocuments((current) => current.filter((item) => item.id !== document.id))
+      setChunksByDocumentId((current) => {
+        const next = { ...current }
+        delete next[document.id]
+        return next
+      })
+    } catch (caughtError) {
+      setError(getErrorMessage(caughtError))
+    }
+  }
+
+  async function handleProcessDocument(document: Document) {
+    setProcessingDocumentId(document.id)
+    setError('')
+
+    try {
+      const processedDocument = await processDocument(document.id)
+      setDocuments((current) =>
+        current.map((item) => (item.id === document.id ? processedDocument : item)),
+      )
+      setChunksByDocumentId((current) => {
+        const next = { ...current }
+        delete next[document.id]
+        return next
+      })
+    } catch (caughtError) {
+      setError(getErrorMessage(caughtError))
+    } finally {
+      setProcessingDocumentId(null)
+    }
+  }
+
+  async function handleToggleChunks(document: Document) {
+    if (expandedDocumentId === document.id) {
+      setExpandedDocumentId(null)
+      return
+    }
+
+    setExpandedDocumentId(document.id)
+
+    if (chunksByDocumentId[document.id]) {
+      return
+    }
+
+    try {
+      const chunks = await listDocumentChunks(document.id)
+      setChunksByDocumentId((current) => ({
+        ...current,
+        [document.id]: chunks,
+      }))
     } catch (caughtError) {
       setError(getErrorMessage(caughtError))
     }
@@ -147,17 +202,64 @@ export function CollectionDetailPage() {
                 <h3>{document.title}</h3>
                 <p>{document.original_filename}</p>
                 <small>
-                  {formatFileSize(document.file_size)} · {document.processing_status} ·{' '}
+                  {formatFileSize(document.file_size)} | {document.processing_status} |{' '}
                   {new Date(document.uploaded_at).toLocaleString()}
                 </small>
+                {document.processing_status === 'ready' ? (
+                  <p className="status-note">
+                    {document.page_count} page(s) processed
+                    {document.processed_at
+                      ? ` on ${new Date(document.processed_at).toLocaleString()}`
+                      : ''}
+                  </p>
+                ) : null}
+                {document.processing_status === 'failed' && document.processing_error ? (
+                  <p className="form-error">{document.processing_error}</p>
+                ) : null}
+                {expandedDocumentId === document.id ? (
+                  <div className="chunk-preview">
+                    {(chunksByDocumentId[document.id] ?? []).length === 0 ? (
+                      <p>No chunks available.</p>
+                    ) : (
+                      chunksByDocumentId[document.id].map((chunk) => (
+                        <section key={chunk.chunk_index}>
+                          <strong>
+                            Page {chunk.page_number}, chunk {chunk.chunk_index + 1}
+                          </strong>
+                          <p>{chunk.content}</p>
+                        </section>
+                      ))
+                    )}
+                  </div>
+                ) : null}
               </div>
-              <button
-                className="button danger"
-                type="button"
-                onClick={() => handleDeleteDocument(document)}
-              >
-                Delete
-              </button>
+              <div className="row-actions">
+                {document.processing_status === 'uploaded' ||
+                document.processing_status === 'failed' ? (
+                  <button
+                    className="button primary"
+                    disabled={processingDocumentId === document.id}
+                    type="button"
+                    onClick={() => handleProcessDocument(document)}
+                  >
+                    {processingDocumentId === document.id ? 'Processing...' : 'Process paper'}
+                  </button>
+                ) : null}
+                <button
+                  className="button"
+                  type="button"
+                  onClick={() => handleToggleChunks(document)}
+                >
+                  {expandedDocumentId === document.id ? 'Hide chunks' : 'Preview chunks'}
+                </button>
+                <button
+                  className="button danger"
+                  type="button"
+                  onClick={() => handleDeleteDocument(document)}
+                >
+                  Delete
+                </button>
+              </div>
             </article>
           ))}
         </div>

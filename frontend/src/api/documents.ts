@@ -16,7 +16,17 @@ export type Document = {
   original_filename: string
   file_size: number
   processing_status: string
+  page_count: number
+  processed_at: string | null
+  processing_error: string
   uploaded_at: string
+}
+
+export type DocumentChunk = {
+  page_number: number
+  chunk_index: number
+  content: string
+  character_count: number
 }
 
 export function listCollections() {
@@ -72,4 +82,14 @@ export function deleteDocument(id: number) {
   return apiClient.request<null>(`/api/documents/${id}/`, {
     method: 'DELETE',
   })
+}
+
+export function processDocument(id: number) {
+  return apiClient.request<Document>(`/api/documents/${id}/process/`, {
+    method: 'POST',
+  })
+}
+
+export function listDocumentChunks(id: number) {
+  return apiClient.request<DocumentChunk[]>(`/api/documents/${id}/chunks/`)
 }
