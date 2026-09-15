@@ -297,9 +297,21 @@ code {
   background: #f7f9fc;
 }
 
-.chunk-preview p {
+.chunk-preview p,
+.search-result p {
   margin: 8px 0 0;
   white-space: pre-wrap;
+}
+
+.search-result {
+  display: grid;
+  gap: 8px;
+  padding: 16px 0;
+  border-top: 1px solid #d8dee8;
+}
+
+.search-result small {
+  color: #64748b;
 }
 
 @media (max-width: 640px) {

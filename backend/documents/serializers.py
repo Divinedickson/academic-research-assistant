@@ -29,6 +29,8 @@ class DocumentSerializer(serializers.ModelSerializer):
             'page_count',
             'processed_at',
             'processing_error',
+            'embedding_status',
+            'embedding_error',
             'uploaded_at',
         ]
         read_only_fields = [
@@ -40,6 +42,8 @@ class DocumentSerializer(serializers.ModelSerializer):
             'page_count',
             'processed_at',
             'processing_error',
+            'embedding_status',
+            'embedding_error',
             'uploaded_at',
         ]
         extra_kwargs = {
@@ -84,5 +88,29 @@ class DocumentSerializer(serializers.ModelSerializer):
 class DocumentChunkSerializer(serializers.ModelSerializer):
     class Meta:
         model = DocumentChunk
-        fields = ['page_number', 'chunk_index', 'content', 'character_count']
+        fields = ['id', 'page_number', 'chunk_index', 'content', 'character_count']
         read_only_fields = fields
+
+
+class SemanticSearchRequestSerializer(serializers.Serializer):
+    query = serializers.CharField(allow_blank=False, trim_whitespace=True)
+    top_k = serializers.IntegerField(min_value=1, max_value=20, default=5)
+
+
+class SemanticSearchResultSerializer(serializers.Serializer):
+    chunk_id = serializers.IntegerField()
+    document_id = serializers.IntegerField()
+    document_title = serializers.CharField()
+    original_filename = serializers.CharField()
+    page_number = serializers.IntegerField()
+    chunk_index = serializers.IntegerField()
+    content = serializers.CharField()
+    cosine_distance = serializers.FloatField()
+    similarity_score = serializers.FloatField()
+
+
+class SemanticSearchResponseSerializer(serializers.Serializer):
+    query = serializers.CharField()
+    top_k = serializers.IntegerField()
+    score_description = serializers.CharField()
+    results = SemanticSearchResultSerializer(many=True)

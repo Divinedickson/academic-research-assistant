@@ -3,8 +3,10 @@ from rest_framework.routers import SimpleRouter
 
 from .views import (
     CollectionDocumentListCreateView,
+    CollectionSemanticSearchView,
     DocumentChunkListView,
     DocumentDetailView,
+    DocumentEmbedView,
     DocumentProcessView,
     ResearchCollectionViewSet,
 )
@@ -19,8 +21,14 @@ urlpatterns = [
         CollectionDocumentListCreateView.as_view(),
         name='collection-documents',
     ),
+    path(
+        'collections/<int:collection_id>/search/',
+        CollectionSemanticSearchView.as_view(),
+        name='collection-search',
+    ),
     path('documents/<int:pk>/', DocumentDetailView.as_view(), name='document-detail'),
     path('documents/<int:pk>/process/', DocumentProcessView.as_view(), name='document-process'),
+    path('documents/<int:pk>/embed/', DocumentEmbedView.as_view(), name='document-embed'),
     path('documents/<int:pk>/chunks/', DocumentChunkListView.as_view(), name='document-chunks'),
     *router.urls,
 ]

@@ -4,7 +4,7 @@ This repository is being built milestone by milestone. Keep changes scoped to th
 
 ## Current Milestone
 
-Milestone 5 adds PDF text extraction and page-aware chunking:
+Milestone 6 adds embeddings and semantic retrieval:
 
 - Django backend in `backend/`
 - React TypeScript Vite frontend in `frontend/`
@@ -26,10 +26,16 @@ Milestone 5 adds PDF text extraction and page-aware chunking:
 - Synchronous document processing endpoint at `/api/documents/{id}/process/`
 - Read-only chunk endpoint at `/api/documents/{id}/chunks/`
 - Collection detail process controls and chunk preview
+- Replaceable embedding provider interface
+- Local Sentence Transformers provider for `sentence-transformers/all-MiniLM-L6-v2`
+- 384-dimensional pgvector chunk embeddings with HNSW cosine index
+- Synchronous document embedding endpoint at `/api/documents/{id}/embed/`
+- Collection semantic search endpoint at `/api/collections/{id}/search/`
+- Collection detail embed controls and semantic search UI
 
 ## Guardrails
 
-- Do not add embeddings, vector similarity search, retrieval, LLM integration, question answering, conversations, OCR, Celery, or RAG workflows until those milestones are approved.
+- Do not add LLM integration, question answering, conversations, OCR, Celery/background workers, automatic summaries, or RAG answer generation until those milestones are approved.
 - Do not commit `.env` files, uploaded PDFs, model weights, virtual environments, `node_modules`, or generated build outputs.
 - Preserve provider boundaries in future RAG milestones so LLM and embedding providers remain replaceable.
 - Keep ownership and citation requirements central when later adding user data and document retrieval.

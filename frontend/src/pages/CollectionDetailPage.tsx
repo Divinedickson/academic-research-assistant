@@ -4,12 +4,15 @@ import { ApiError } from '../api/client'
 import {
   type Document,
   type DocumentChunk,
+  type SemanticSearchResult,
   type ResearchCollection,
   deleteDocument,
+  embedDocument,
   getCollection,
   listDocumentChunks,
   listDocuments,
   processDocument,
+  searchCollection,
   uploadDocument,
 } from '../api/documents'
 
@@ -44,8 +47,14 @@ export function CollectionDetailPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [isUploading, setIsUploading] = useState(false)
   const [processingDocumentId, setProcessingDocumentId] = useState<number | null>(null)
+  const [embeddingDocumentId, setEmbeddingDocumentId] = useState<number | null>(null)
   const [expandedDocumentId, setExpandedDocumentId] = useState<number | null>(null)
   const [chunksByDocumentId, setChunksByDocumentId] = useState<Record<number, DocumentChunk[]>>({})
+  const [searchQuery, setSearchQuery] = useState('')
+  const [topK, setTopK] = useState(5)
+  const [searchResults, setSearchResults] = useState<SemanticSearchResult[]>([])
+  const [scoreDescription, setScoreDescription] = useState('')
+  const [isSearching, setIsSearching] = useState(false)
 
   const loadCollection = useCallback(async () => {
     try {
@@ -133,6 +142,22 @@ export function CollectionDetailPage() {
     }
   }
 
+  async function handleEmbedDocument(document: Document) {
+    setEmbeddingDocumentId(document.id)
+    setError('')
+
+    try {
+      const embeddedDocument = await embedDocument(document.id)
+      setDocuments((current) =>
+        current.map((item) => (item.id === document.id ? embeddedDocument : item)),
+      )
+    } catch (caughtError) {
+      setError(getErrorMessage(caughtError))
+    } finally {
+      setEmbeddingDocumentId(null)
+    }
+  }
+
   async function handleToggleChunks(document: Document) {
     if (expandedDocumentId === document.id) {
       setExpandedDocumentId(null)
@@ -153,6 +178,25 @@ export function CollectionDetailPage() {
       }))
     } catch (caughtError) {
       setError(getErrorMessage(caughtError))
+    }
+  }
+
+  async function handleSearch(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    setIsSearching(true)
+    setError('')
+
+    try {
+      const response = await searchCollection(collectionId, {
+        query: searchQuery,
+        top_k: topK,
+      })
+      setSearchResults(response.results)
+      setScoreDescription(response.score_description)
+    } catch (caughtError) {
+      setError(getErrorMessage(caughtError))
+    } finally {
+      setIsSearching(false)
     }
   }
 
@@ -213,8 +257,14 @@ export function CollectionDetailPage() {
                       : ''}
                   </p>
                 ) : null}
+                {document.processing_status === 'ready' ? (
+                  <p className="status-note">Embedding status: {document.embedding_status}</p>
+                ) : null}
                 {document.processing_status === 'failed' && document.processing_error ? (
                   <p className="form-error">{document.processing_error}</p>
+                ) : null}
+                {document.embedding_status === 'failed' && document.embedding_error ? (
+                  <p className="form-error">{document.embedding_error}</p>
                 ) : null}
                 {expandedDocumentId === document.id ? (
                   <div className="chunk-preview">
@@ -245,6 +295,17 @@ export function CollectionDetailPage() {
                     {processingDocumentId === document.id ? 'Processing...' : 'Process paper'}
                   </button>
                 ) : null}
+                {document.processing_status === 'ready' &&
+                document.embedding_status !== 'embedded' ? (
+                  <button
+                    className="button primary"
+                    disabled={embeddingDocumentId === document.id}
+                    type="button"
+                    onClick={() => handleEmbedDocument(document)}
+                  >
+                    {embeddingDocumentId === document.id ? 'Embedding...' : 'Embed paper'}
+                  </button>
+                ) : null}
                 <button
                   className="button"
                   type="button"
@@ -263,6 +324,54 @@ export function CollectionDetailPage() {
             </article>
           ))}
         </div>
+      </section>
+
+      <section className="panel">
+        <h2>Semantic search</h2>
+        <p>
+          This searches embedded chunks by meaning. It does not generate AI answers.
+        </p>
+        <form className="auth-form" onSubmit={handleSearch}>
+          <label>
+            Question or search phrase
+            <input
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+              required
+            />
+          </label>
+          <label>
+            Number of results
+            <input
+              max={20}
+              min={1}
+              type="number"
+              value={topK}
+              onChange={(event) => setTopK(Number(event.target.value))}
+            />
+          </label>
+          <button className="button primary" disabled={isSearching} type="submit">
+            {isSearching ? 'Searching...' : 'Search embedded chunks'}
+          </button>
+        </form>
+        {scoreDescription ? <p className="status-note">{scoreDescription}</p> : null}
+        <div className="item-list">
+          {searchResults.map((result) => (
+            <article className="search-result" key={result.chunk_id}>
+              <strong>
+                {result.document_title}, page {result.page_number}
+              </strong>
+              <small>
+                similarity {result.similarity_score.toFixed(3)} | distance{' '}
+                {result.cosine_distance.toFixed(3)}
+              </small>
+              <p>{result.content}</p>
+            </article>
+          ))}
+        </div>
+        {scoreDescription && searchResults.length === 0 ? (
+          <p>No embedded chunks matched this search.</p>
+        ) : null}
       </section>
     </div>
   )

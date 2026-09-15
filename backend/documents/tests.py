@@ -9,11 +9,20 @@ from django.core.files import File
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import override_settings
 from django.urls import reverse
+from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APITestCase
 
 from .models import Document, DocumentChunk, ResearchCollection
-from .services import PdfExtractionError, chunk_pages, extract_pdf_pages, process_document
+from .services import (
+    EmbeddingError,
+    PdfExtractionError,
+    chunk_pages,
+    embed_document,
+    extract_pdf_pages,
+    process_document,
+    semantic_search_collection,
+)
 from .services.extraction import ExtractedPage
 
 
@@ -45,6 +54,35 @@ def create_pdf_bytes(page_texts):
 def create_pdf_file(path, page_texts):
     path.write_bytes(create_pdf_bytes(page_texts))
     return path
+
+
+def vector(first_value=1.0, second_value=0.0):
+    values = [0.0] * 384
+    values[0] = first_value
+    values[1] = second_value
+    return values
+
+
+class FakeEmbeddingProvider:
+    model_name = 'fake-embedding-model'
+    dimensions = 384
+
+    def __init__(self, vectors=None, fail=False):
+        self.vectors = vectors or []
+        self.fail = fail
+        self.calls = []
+
+    def embed_texts(self, texts):
+        self.calls.append(list(texts))
+
+        if self.fail:
+            raise RuntimeError('provider exploded')
+
+        if self.vectors:
+            start = sum(len(call) for call in self.calls[:-1])
+            return self.vectors[start:start + len(texts)]
+
+        return [vector() for _text in texts]
 
 
 class DocumentApiTests(APITestCase):
@@ -521,7 +559,7 @@ class DocumentProcessingApiTests(APITestCase):
         self.assertEqual(post_response.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
         self.assertEqual(
             set(get_response.data[0].keys()),
-            {'page_number', 'chunk_index', 'content', 'character_count'},
+            {'id', 'page_number', 'chunk_index', 'content', 'character_count'},
         )
 
     def test_document_processing_fields_are_read_only(self):
@@ -542,3 +580,293 @@ class DocumentProcessingApiTests(APITestCase):
         self.assertEqual(document.page_count, 0)
         self.assertEqual(document.processing_error, '')
         self.assertIsNone(document.processed_at)
+
+
+class EmbeddingAndSearchTests(APITestCase):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.media_root = tempfile.mkdtemp()
+        cls.override = override_settings(MEDIA_ROOT=cls.media_root)
+        cls.override.enable()
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.override.disable()
+        shutil.rmtree(cls.media_root, ignore_errors=True)
+        super().tearDownClass()
+
+    def setUp(self):
+        self.user = User.objects.create_user(
+            username='embedder',
+            email='embedder@example.com',
+            password='ResearchPass123!',
+        )
+        self.other_user = User.objects.create_user(
+            username='other-embedder',
+            email='other-embedder@example.com',
+            password='ResearchPass123!',
+        )
+        self.collection = ResearchCollection.objects.create(owner=self.user, name='Embedding Papers')
+        self.other_collection = ResearchCollection.objects.create(
+            owner=self.other_user,
+            name='Private Embedding Papers',
+        )
+        self.client.force_authenticate(user=self.user)
+
+    def create_ready_document(self, collection=None, title='Ready Paper', chunk_texts=None):
+        collection = collection or self.collection
+        document = Document.objects.create(
+            collection=collection,
+            title=title,
+            file=pdf_file('ready.pdf', create_pdf_bytes(['Ready text.'])),
+            original_filename='ready.pdf',
+            file_size=20,
+            processing_status=Document.ProcessingStatus.READY,
+            page_count=1,
+            processed_at=timezone.now(),
+        )
+        if chunk_texts is None:
+            chunk_texts = ['first chunk', 'second chunk']
+
+        for index, content in enumerate(chunk_texts):
+            DocumentChunk.objects.create(
+                document=document,
+                page_number=index + 1,
+                chunk_index=index,
+                content=content,
+                character_count=len(content),
+            )
+
+        return document
+
+    def test_fake_embedding_provider_batches_and_dimensions(self):
+        provider = FakeEmbeddingProvider(vectors=[vector(), vector(0.0, 1.0), vector(1.0, 1.0)])
+
+        embeddings = provider.embed_texts(['a', 'b'])
+        more_embeddings = provider.embed_texts(['c'])
+
+        self.assertEqual(len(provider.calls), 2)
+        self.assertEqual(len(embeddings[0]), 384)
+        self.assertEqual(more_embeddings[0][0], 1.0)
+
+    def test_embedding_vectors_are_normalized_before_storage(self):
+        document = self.create_ready_document(chunk_texts=['one'])
+        provider = FakeEmbeddingProvider(vectors=[vector(3.0, 4.0)])
+
+        embed_document(document, provider=provider)
+
+        chunk = document.chunks.get()
+        self.assertAlmostEqual(chunk.embedding[0], 0.6)
+        self.assertAlmostEqual(chunk.embedding[1], 0.8)
+
+    def test_embedding_rejects_wrong_vector_dimensions(self):
+        document = self.create_ready_document(chunk_texts=['one'])
+        provider = FakeEmbeddingProvider(vectors=[[1.0, 0.0]])
+
+        with self.assertRaises(EmbeddingError):
+            embed_document(document, provider=provider)
+
+        document.refresh_from_db()
+        self.assertEqual(document.embedding_status, Document.EmbeddingStatus.FAILED)
+        self.assertFalse(document.chunks.filter(embedding__isnull=False).exists())
+
+    def test_embedding_only_ready_documents(self):
+        document = self.create_ready_document()
+        document.processing_status = Document.ProcessingStatus.UPLOADED
+        document.save(update_fields=['processing_status'])
+
+        with self.assertRaises(EmbeddingError):
+            embed_document(document, provider=FakeEmbeddingProvider())
+
+    def test_embedding_rejects_document_without_chunks(self):
+        document = self.create_ready_document(chunk_texts=[])
+        document.chunks.all().delete()
+
+        with self.assertRaises(EmbeddingError):
+            embed_document(document, provider=FakeEmbeddingProvider())
+
+    def test_successful_embedding_of_all_chunks_in_batches(self):
+        document = self.create_ready_document(chunk_texts=['a', 'b', 'c'])
+        provider = FakeEmbeddingProvider(vectors=[vector(), vector(0.0, 1.0), vector(1.0, 1.0)])
+
+        embed_document(document, provider=provider, batch_size=2)
+
+        document.refresh_from_db()
+        self.assertEqual(document.embedding_status, Document.EmbeddingStatus.EMBEDDED)
+        self.assertEqual([len(call) for call in provider.calls], [2, 1])
+        self.assertEqual(document.chunks.filter(embedding__isnull=False).count(), 3)
+        self.assertTrue(document.chunks.filter(embedding_model=provider.model_name).count(), 3)
+
+    def test_safe_re_embedding_replaces_vectors(self):
+        document = self.create_ready_document(chunk_texts=['a'])
+        embed_document(document, provider=FakeEmbeddingProvider(vectors=[vector()]))
+        first_embedding = list(document.chunks.get().embedding)
+
+        embed_document(document, provider=FakeEmbeddingProvider(vectors=[vector(0.0, 1.0)]))
+
+        document.refresh_from_db()
+        second_embedding = list(document.chunks.get().embedding)
+        self.assertNotEqual(first_embedding, second_embedding)
+        self.assertEqual(document.embedding_status, Document.EmbeddingStatus.EMBEDDED)
+
+    def test_embedding_failure_keeps_old_vectors_without_mixture(self):
+        document = self.create_ready_document(chunk_texts=['a', 'b'])
+        embed_document(document, provider=FakeEmbeddingProvider(vectors=[vector(), vector()]))
+        old_vectors = [
+            list(embedding)
+            for embedding in document.chunks.order_by('chunk_index').values_list('embedding', flat=True)
+        ]
+
+        with self.assertRaises(EmbeddingError):
+            embed_document(document, provider=FakeEmbeddingProvider(fail=True))
+
+        document.refresh_from_db()
+        new_vectors = [
+            list(embedding)
+            for embedding in document.chunks.order_by('chunk_index').values_list('embedding', flat=True)
+        ]
+        self.assertEqual(old_vectors, new_vectors)
+        self.assertEqual(document.embedding_status, Document.EmbeddingStatus.FAILED)
+        self.assertNotIn('provider exploded', document.embedding_error)
+
+    def test_embed_endpoint_authentication_and_ownership(self):
+        document = self.create_ready_document()
+        other_document = self.create_ready_document(collection=self.other_collection)
+        self.client.force_authenticate(user=None)
+
+        unauthenticated = self.client.post(reverse('document-embed', kwargs={'pk': document.id}))
+        self.client.force_authenticate(user=self.user)
+        other_response = self.client.post(reverse('document-embed', kwargs={'pk': other_document.id}))
+
+        self.assertEqual(unauthenticated.status_code, status.HTTP_401_UNAUTHORIZED)
+        self.assertEqual(other_response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_embed_endpoint_success_with_fake_provider(self):
+        document = self.create_ready_document(chunk_texts=['a'])
+
+        with patch(
+            'documents.views.embed_document',
+            side_effect=lambda doc: embed_document(doc, provider=FakeEmbeddingProvider()),
+        ):
+            response = self.client.post(reverse('document-embed', kwargs={'pk': document.id}))
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['embedding_status'], Document.EmbeddingStatus.EMBEDDED)
+
+    def test_blank_query_and_top_k_validation(self):
+        blank_response = self.client.post(
+            reverse('collection-search', kwargs={'collection_id': self.collection.id}),
+            {'query': '   ', 'top_k': 5},
+            format='json',
+        )
+        too_large_response = self.client.post(
+            reverse('collection-search', kwargs={'collection_id': self.collection.id}),
+            {'query': 'biology', 'top_k': 21},
+            format='json',
+        )
+
+        self.assertEqual(blank_response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(too_large_response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_collection_search_enforces_ownership(self):
+        response = self.client.post(
+            reverse('collection-search', kwargs={'collection_id': self.other_collection.id}),
+            {'query': 'private'},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_semantic_ranking_and_citation_metadata(self):
+        document = self.create_ready_document(
+            title='Neural Topic Paper',
+            chunk_texts=['neural networks', 'climate systems'],
+        )
+        chunks = list(document.chunks.order_by('chunk_index'))
+        chunks[0].embedding = vector(1.0, 0.0)
+        chunks[1].embedding = vector(0.0, 1.0)
+        for chunk in chunks:
+            chunk.embedding_model = 'fake-embedding-model'
+            chunk.embedded_at = timezone.now()
+        DocumentChunk.objects.bulk_update(chunks, ['embedding', 'embedding_model', 'embedded_at'])
+
+        results = semantic_search_collection(
+            self.collection,
+            'artificial intelligence',
+            top_k=2,
+            provider=FakeEmbeddingProvider(vectors=[vector(1.0, 0.0)]),
+        )
+
+        self.assertEqual([result.chunk_index for result in results], [0, 1])
+        self.assertEqual(results[0].document_title, 'Neural Topic Paper')
+        self.assertEqual(results[0].original_filename, 'ready.pdf')
+        self.assertEqual(results[0].page_number, 1)
+        self.assertGreater(results[0].similarity_score, results[1].similarity_score)
+
+    def test_search_is_limited_to_selected_collection_and_embedded_chunks(self):
+        selected_document = self.create_ready_document(
+            collection=self.collection,
+            title='Selected',
+            chunk_texts=['selected embedded', 'selected unembedded'],
+        )
+        other_document = self.create_ready_document(
+            collection=ResearchCollection.objects.create(owner=self.user, name='Other Owned'),
+            title='Other Owned',
+            chunk_texts=['other collection'],
+        )
+        private_document = self.create_ready_document(
+            collection=self.other_collection,
+            title='Private',
+            chunk_texts=['private'],
+        )
+
+        selected_chunk = selected_document.chunks.order_by('chunk_index').first()
+        selected_chunk.embedding = vector()
+        selected_chunk.embedding_model = 'fake-embedding-model'
+        selected_chunk.embedded_at = timezone.now()
+        selected_chunk.save(update_fields=['embedding', 'embedding_model', 'embedded_at'])
+
+        for document in [other_document, private_document]:
+            chunk = document.chunks.first()
+            chunk.embedding = vector()
+            chunk.embedding_model = 'fake-embedding-model'
+            chunk.embedded_at = timezone.now()
+            chunk.save(update_fields=['embedding', 'embedding_model', 'embedded_at'])
+
+        results = semantic_search_collection(
+            self.collection,
+            'selected',
+            top_k=10,
+            provider=FakeEmbeddingProvider(vectors=[vector()]),
+        )
+
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0].document_id, selected_document.id)
+        self.assertEqual(results[0].content, 'selected embedded')
+
+    def test_empty_search_result_behavior(self):
+        self.create_ready_document(chunk_texts=['not embedded'])
+
+        results = semantic_search_collection(
+            self.collection,
+            'anything',
+            provider=FakeEmbeddingProvider(vectors=[vector()]),
+        )
+
+        self.assertEqual(results, [])
+
+    def test_search_endpoint_response_for_empty_results(self):
+        with patch(
+            'documents.views.semantic_search_collection',
+            return_value=[],
+        ):
+            response = self.client.post(
+                reverse('collection-search', kwargs={'collection_id': self.collection.id}),
+                {'query': 'anything', 'top_k': 3},
+                format='json',
+            )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['results'], [])
+        self.assertIn('higher is more similar', response.data['score_description'])

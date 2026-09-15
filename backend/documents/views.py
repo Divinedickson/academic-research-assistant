@@ -6,8 +6,13 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from .models import Document, ResearchCollection
-from .serializers import DocumentChunkSerializer, DocumentSerializer, ResearchCollectionSerializer
-from .services import process_document
+from .serializers import (
+    DocumentChunkSerializer,
+    DocumentSerializer,
+    ResearchCollectionSerializer,
+    SemanticSearchRequestSerializer,
+)
+from .services import EmbeddingError, embed_document, process_document, semantic_search_collection
 
 
 class ResearchCollectionViewSet(viewsets.ModelViewSet):
@@ -67,6 +72,24 @@ class DocumentProcessView(APIView):
         return Response(DocumentSerializer(processed_document).data)
 
 
+class DocumentEmbedView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, pk):
+        document = generics.get_object_or_404(
+            Document,
+            pk=pk,
+            collection__owner=request.user,
+        )
+
+        try:
+            embedded_document = embed_document(document)
+        except EmbeddingError as exc:
+            return Response({'detail': str(exc)}, status=400)
+
+        return Response(DocumentSerializer(embedded_document).data)
+
+
 class DocumentChunkListView(generics.ListAPIView):
     serializer_class = DocumentChunkSerializer
     permission_classes = [IsAuthenticated]
@@ -78,3 +101,34 @@ class DocumentChunkListView(generics.ListAPIView):
             collection__owner=self.request.user,
         )
         return document.chunks.all()
+
+
+class CollectionSemanticSearchView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, collection_id):
+        collection = generics.get_object_or_404(
+            ResearchCollection,
+            id=collection_id,
+            owner=request.user,
+        )
+        serializer = SemanticSearchRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        results = semantic_search_collection(
+            collection,
+            query=serializer.validated_data['query'],
+            top_k=serializer.validated_data['top_k'],
+        )
+
+        return Response(
+            {
+                'query': serializer.validated_data['query'],
+                'top_k': serializer.validated_data['top_k'],
+                'score_description': (
+                    'similarity_score is cosine similarity in the range -1 to 1; '
+                    'higher is more similar. cosine_distance is 1 - similarity, where lower is closer.'
+                ),
+                'results': [result.__dict__ for result in results],
+            },
+        )

@@ -19,6 +19,8 @@ export type Document = {
   page_count: number
   processed_at: string | null
   processing_error: string
+  embedding_status: string
+  embedding_error: string
   uploaded_at: string
 }
 
@@ -27,6 +29,25 @@ export type DocumentChunk = {
   chunk_index: number
   content: string
   character_count: number
+}
+
+export type SemanticSearchResult = {
+  chunk_id: number
+  document_id: number
+  document_title: string
+  original_filename: string
+  page_number: number
+  chunk_index: number
+  content: string
+  cosine_distance: number
+  similarity_score: number
+}
+
+export type SemanticSearchResponse = {
+  query: string
+  top_k: number
+  score_description: string
+  results: SemanticSearchResult[]
 }
 
 export function listCollections() {
@@ -90,6 +111,19 @@ export function processDocument(id: number) {
   })
 }
 
+export function embedDocument(id: number) {
+  return apiClient.request<Document>(`/api/documents/${id}/embed/`, {
+    method: 'POST',
+  })
+}
+
 export function listDocumentChunks(id: number) {
   return apiClient.request<DocumentChunk[]>(`/api/documents/${id}/chunks/`)
+}
+
+export function searchCollection(collectionId: number, input: { query: string; top_k: number }) {
+  return apiClient.request<SemanticSearchResponse>(`/api/collections/${collectionId}/search/`, {
+    method: 'POST',
+    body: JSON.stringify(input),
+  })
 }

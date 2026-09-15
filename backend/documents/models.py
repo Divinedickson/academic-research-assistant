@@ -3,7 +3,9 @@ from pathlib import Path
 
 from django.conf import settings
 from django.db import models
+from django.db.models import Q
 from django.utils import timezone
+from pgvector.django import HnswIndex, VectorField
 
 
 def document_upload_path(instance, filename):
@@ -38,6 +40,12 @@ class Document(models.Model):
         READY = 'ready', 'Ready'
         FAILED = 'failed', 'Failed'
 
+    class EmbeddingStatus(models.TextChoices):
+        NOT_EMBEDDED = 'not_embedded', 'Not embedded'
+        EMBEDDING = 'embedding', 'Embedding'
+        EMBEDDED = 'embedded', 'Embedded'
+        FAILED = 'failed', 'Failed'
+
     collection = models.ForeignKey(
         ResearchCollection,
         on_delete=models.CASCADE,
@@ -55,6 +63,12 @@ class Document(models.Model):
     page_count = models.PositiveIntegerField(default=0)
     processed_at = models.DateTimeField(null=True, blank=True)
     processing_error = models.TextField(blank=True)
+    embedding_status = models.CharField(
+        max_length=20,
+        choices=EmbeddingStatus.choices,
+        default=EmbeddingStatus.NOT_EMBEDDED,
+    )
+    embedding_error = models.TextField(blank=True)
     uploaded_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -76,19 +90,32 @@ class Document(models.Model):
     def mark_processing(self):
         self.processing_status = self.ProcessingStatus.PROCESSING
         self.processing_error = ''
-        self.save(update_fields=['processing_status', 'processing_error'])
+        self.embedding_status = self.EmbeddingStatus.NOT_EMBEDDED
+        self.embedding_error = ''
+        self.save(
+            update_fields=[
+                'processing_status',
+                'processing_error',
+                'embedding_status',
+                'embedding_error',
+            ],
+        )
 
     def mark_ready(self, page_count):
         self.processing_status = self.ProcessingStatus.READY
         self.page_count = page_count
         self.processing_error = ''
         self.processed_at = timezone.now()
+        self.embedding_status = self.EmbeddingStatus.NOT_EMBEDDED
+        self.embedding_error = ''
         self.save(
             update_fields=[
                 'processing_status',
                 'page_count',
                 'processing_error',
                 'processed_at',
+                'embedding_status',
+                'embedding_error',
             ],
         )
 
@@ -96,7 +123,32 @@ class Document(models.Model):
         self.processing_status = self.ProcessingStatus.FAILED
         self.processing_error = message
         self.processed_at = timezone.now()
-        self.save(update_fields=['processing_status', 'processing_error', 'processed_at'])
+        self.embedding_status = self.EmbeddingStatus.NOT_EMBEDDED
+        self.embedding_error = ''
+        self.save(
+            update_fields=[
+                'processing_status',
+                'processing_error',
+                'processed_at',
+                'embedding_status',
+                'embedding_error',
+            ],
+        )
+
+    def mark_embedding(self):
+        self.embedding_status = self.EmbeddingStatus.EMBEDDING
+        self.embedding_error = ''
+        self.save(update_fields=['embedding_status', 'embedding_error'])
+
+    def mark_embedded(self):
+        self.embedding_status = self.EmbeddingStatus.EMBEDDED
+        self.embedding_error = ''
+        self.save(update_fields=['embedding_status', 'embedding_error'])
+
+    def mark_embedding_failed(self, message):
+        self.embedding_status = self.EmbeddingStatus.FAILED
+        self.embedding_error = message
+        self.save(update_fields=['embedding_status', 'embedding_error'])
 
 
 class DocumentChunk(models.Model):
@@ -109,10 +161,23 @@ class DocumentChunk(models.Model):
     chunk_index = models.PositiveIntegerField()
     content = models.TextField()
     character_count = models.PositiveIntegerField()
+    embedding = VectorField(dimensions=384, null=True, blank=True)
+    embedding_model = models.CharField(max_length=255, blank=True)
+    embedded_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         ordering = ['document_id', 'chunk_index']
+        indexes = [
+            HnswIndex(
+                name='document_chunk_embedding_hnsw',
+                fields=['embedding'],
+                m=16,
+                ef_construction=64,
+                opclasses=['vector_cosine_ops'],
+                condition=Q(embedding__isnull=False),
+            ),
+        ]
         constraints = [
             models.UniqueConstraint(
                 fields=['document', 'chunk_index'],

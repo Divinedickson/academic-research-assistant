@@ -2,7 +2,7 @@
 
 A full-stack research assistant for academic literature. The application will let users upload legally obtained or open-access academic PDFs, ask questions about their contents, and receive grounded answers with citations.
 
-This repository is being implemented in milestones. Milestone 5 adds PDF text extraction and page-aware chunking.
+This repository is being implemented in milestones. Milestone 6 adds local embeddings and semantic retrieval with pgvector.
 
 ## Current Stack
 
@@ -11,7 +11,7 @@ This repository is being implemented in milestones. Milestone 5 adds PDF text ex
 - Database: PostgreSQL with pgvector via Docker Compose
 - Local development CORS configured for Vite on port `5173`
 
-Embeddings, retrieval, conversations, RAG workflows, OCR, and LLM integrations are intentionally not configured yet. A free external LLM API will be added later behind a replaceable provider interface.
+Conversations, RAG answer generation, OCR, background workers, and LLM integrations are intentionally not configured yet. A free external LLM API will be added later behind a replaceable provider interface.
 
 ## Project Structure
 
@@ -68,6 +68,8 @@ GET    /api/documents/{id}/
 DELETE /api/documents/{id}/
 POST   /api/documents/{id}/process/
 GET    /api/documents/{id}/chunks/
+POST   /api/documents/{id}/embed/
+POST   /api/collections/{id}/search/
 ```
 
 PDF uploads use `multipart/form-data`, require authentication, and are limited by `DOCUMENT_UPLOAD_MAX_BYTES`.
@@ -81,6 +83,29 @@ Processing uses PyMuPDF to extract text one page at a time. Page numbers are sto
 Chunking stays within each page. The default chunk size is `DOCUMENT_CHUNK_SIZE=1000` characters with `DOCUMENT_CHUNK_OVERLAP=200` characters. The chunker prefers paragraph, sentence, line, or word boundaries when practical, then falls back to a hard character limit for very long paragraphs. It always advances after each chunk to avoid infinite loops and skips empty chunks.
 
 Scanned or image-only PDFs are unsupported until OCR is added. Those documents are marked `failed` with a safe user-facing error message.
+
+## Embeddings and Search
+
+The initial embedding provider is local Sentence Transformers:
+
+```env
+EMBEDDING_PROVIDER=sentence_transformers
+EMBEDDING_MODEL_NAME=sentence-transformers/all-MiniLM-L6-v2
+EMBEDDING_DIMENSIONS=384
+EMBEDDING_BATCH_SIZE=32
+```
+
+The `all-MiniLM-L6-v2` model dimension was verified from the Hugging Face model config and by loading the model locally. Chunk embeddings are normalized for cosine similarity and stored in PostgreSQL using pgvector.
+
+The chunk embedding index is HNSW with `vector_cosine_ops`. HNSW is an approximate nearest-neighbor index, so it is designed for fast semantic retrieval as data grows. Search responses include both `cosine_distance` and `similarity_score`; the similarity score is `1 - cosine_distance`, where higher means more similar.
+
+Search concepts:
+
+- Keyword search matches exact words or lexical patterns.
+- Semantic vector search compares embedding vectors, so it can match related meaning even when wording differs.
+- RAG answer generation retrieves evidence and then asks an LLM to write a grounded answer. That generation stage has not been added yet.
+
+Embedding and semantic search are synchronous in this milestone. Background processing should be considered before production.
 
 ## Database Setup
 
@@ -141,6 +166,10 @@ Useful backend environment settings:
 DOCUMENT_UPLOAD_MAX_BYTES=10485760
 DOCUMENT_CHUNK_SIZE=1000
 DOCUMENT_CHUNK_OVERLAP=200
+EMBEDDING_PROVIDER=sentence_transformers
+EMBEDDING_MODEL_NAME=sentence-transformers/all-MiniLM-L6-v2
+EMBEDDING_DIMENSIONS=384
+EMBEDDING_BATCH_SIZE=32
 ```
 
 ## Token Storage

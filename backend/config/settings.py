@@ -145,6 +145,13 @@ MEDIA_ROOT = BASE_DIR / 'media'
 DOCUMENT_UPLOAD_MAX_BYTES = int(os.environ.get('DOCUMENT_UPLOAD_MAX_BYTES', 10 * 1024 * 1024))
 DOCUMENT_CHUNK_SIZE = int(os.environ.get('DOCUMENT_CHUNK_SIZE', 1000))
 DOCUMENT_CHUNK_OVERLAP = int(os.environ.get('DOCUMENT_CHUNK_OVERLAP', 200))
+EMBEDDING_PROVIDER = os.environ.get('EMBEDDING_PROVIDER', 'sentence_transformers')
+EMBEDDING_MODEL_NAME = os.environ.get(
+    'EMBEDDING_MODEL_NAME',
+    'sentence-transformers/all-MiniLM-L6-v2',
+)
+EMBEDDING_DIMENSIONS = int(os.environ.get('EMBEDDING_DIMENSIONS', 384))
+EMBEDDING_BATCH_SIZE = int(os.environ.get('EMBEDDING_BATCH_SIZE', 32))
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
