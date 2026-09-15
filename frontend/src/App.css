@@ -27,7 +27,7 @@
 }
 
 .panel {
-  width: min(100%, 560px);
+  width: min(100%, 720px);
   border: 1px solid #d8dee8;
   border-radius: 8px;
   padding: 32px;
@@ -49,6 +49,18 @@ h1 {
   color: #172033;
   font-size: 34px;
   line-height: 1.15;
+}
+
+h2 {
+  margin: 0 0 16px;
+  color: #172033;
+  font-size: 24px;
+}
+
+h3 {
+  margin: 0 0 8px;
+  color: #172033;
+  font-size: 18px;
 }
 
 .panel p {
@@ -155,13 +167,20 @@ code {
   font-weight: 700;
 }
 
-.auth-form input {
+.auth-form input,
+.auth-form textarea {
   min-height: 42px;
   border: 1px solid #c4cfdd;
   border-radius: 6px;
   padding: 0 12px;
   color: #172033;
   font: inherit;
+}
+
+.auth-form textarea {
+  min-height: 88px;
+  padding-block: 10px;
+  resize: vertical;
 }
 
 .form-error {
@@ -197,4 +216,73 @@ code {
 .user-details dd {
   margin: 0;
   color: #172033;
+}
+
+.page-stack {
+  width: min(100%, 720px);
+  display: grid;
+  gap: 24px;
+}
+
+.item-list {
+  display: grid;
+  gap: 12px;
+}
+
+.item-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 0;
+  border-top: 1px solid #d8dee8;
+}
+
+.item-row p {
+  margin: 0 0 6px;
+}
+
+.item-row small {
+  color: #64748b;
+}
+
+.row-actions,
+.edit-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.edit-row {
+  width: 100%;
+}
+
+.edit-row input {
+  min-height: 42px;
+  flex: 1;
+  min-width: 180px;
+  border: 1px solid #c4cfdd;
+  border-radius: 6px;
+  padding: 0 12px;
+  color: #172033;
+  font: inherit;
+}
+
+.button.danger {
+  border-color: #f1b4b4;
+  color: #9b2c2c;
+}
+
+@media (max-width: 640px) {
+  .app-shell {
+    padding: 20px;
+  }
+
+  .panel {
+    padding: 24px;
+  }
+
+  .item-row {
+    flex-direction: column;
+  }
 }

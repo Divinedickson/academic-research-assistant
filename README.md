@@ -2,7 +2,7 @@
 
 A full-stack research assistant for academic literature. The application will let users upload legally obtained or open-access academic PDFs, ask questions about their contents, and receive grounded answers with citations.
 
-This repository is being implemented in milestones. Milestone 1 contains only the initial Django and React foundation.
+This repository is being implemented in milestones. Milestone 4 adds authenticated research collections and PDF uploads.
 
 ## Current Stack
 
@@ -11,17 +11,17 @@ This repository is being implemented in milestones. Milestone 1 contains only th
 - Database: PostgreSQL with pgvector via Docker Compose
 - Local development CORS configured for Vite on port `5173`
 
-Ollama, embeddings, authentication, PDF processing, and RAG workflows are intentionally not configured yet.
+Text extraction, embeddings, retrieval, conversations, RAG workflows, and LLM integrations are intentionally not configured yet.
 
 ## Project Structure
 
 ```text
 academic-research-assistant/
-├── backend/
-├── frontend/
-├── .gitignore
-├── AGENTS.md
-└── README.md
+|-- backend/
+|-- frontend/
+|-- .gitignore
+|-- AGENTS.md
+`-- README.md
 ```
 
 ## Backend Setup
@@ -53,6 +53,22 @@ POST /api/auth/login/
 POST /api/auth/token/refresh/
 GET  /api/auth/me/
 ```
+
+Collection and upload endpoints:
+
+```text
+GET    /api/collections/
+POST   /api/collections/
+GET    /api/collections/{id}/
+PATCH  /api/collections/{id}/
+DELETE /api/collections/{id}/
+GET    /api/collections/{collection_id}/documents/
+POST   /api/collections/{collection_id}/documents/
+GET    /api/documents/{id}/
+DELETE /api/documents/{id}/
+```
+
+PDF uploads use `multipart/form-data`, require authentication, and are limited by `DOCUMENT_UPLOAD_MAX_BYTES`.
 
 ## Database Setup
 
@@ -111,4 +127,4 @@ Never commit real `.env` files.
 
 The frontend keeps the short-lived access token in memory. The refresh token is stored in `localStorage` so a page refresh can restore the session through `/api/auth/token/refresh/`.
 
-This follows the normal Simple JWT JSON response flow and avoids adding a custom cookie/CSRF system in this milestone. The tradeoff is that `localStorage` can be exposed by cross-site scripting bugs, so future frontend work should keep user-generated HTML out of the DOM and revisit HttpOnly refresh-token cookies before production.
+This follows the normal Simple JWT JSON response flow and avoids adding a custom cookie/CSRF system in this milestone. The tradeoff is that `localStorage` can be exposed by cross-site scripting bugs, so future frontend work should keep user-generated HTML out of the DOM and revisit HttpOnly refresh-token cookies with CSRF protection before production.

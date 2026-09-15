@@ -4,7 +4,7 @@ This repository is being built milestone by milestone. Keep changes scoped to th
 
 ## Current Milestone
 
-Milestone 3 adds user authentication:
+Milestone 4 adds research collections and PDF uploads:
 
 - Django backend in `backend/`
 - React TypeScript Vite frontend in `frontend/`
@@ -18,10 +18,13 @@ Milestone 3 adds user authentication:
 - Accounts app using Django's built-in User model
 - Simple JWT endpoints for registration, login, token refresh, and current user
 - Basic frontend register/login pages and protected dashboard
+- Documents app with owner-scoped research collections
+- Authenticated PDF upload endpoints with validation and stored-file cleanup
+- Dashboard collection management and collection detail upload UI
 
 ## Guardrails
 
-- Do not add document, collection, chunk, embedding, retrieval, LLM, PDF processing, or RAG workflows until those milestones are approved.
+- Do not add text extraction, chunking, embedding, retrieval, LLM, PDF processing beyond upload validation/storage, conversations, or RAG workflows until those milestones are approved.
 - Do not commit `.env` files, uploaded PDFs, model weights, virtual environments, `node_modules`, or generated build outputs.
 - Preserve provider boundaries in future RAG milestones so LLM and embedding providers remain replaceable.
 - Keep ownership and citation requirements central when later adding user data and document retrieval.
