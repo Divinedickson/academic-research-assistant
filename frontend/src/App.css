@@ -1,11 +1,32 @@
 .app-shell {
   min-height: 100svh;
-  display: grid;
-  place-items: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
   padding: 32px;
 }
 
-.status-panel {
+.top-nav {
+  width: min(100%, 720px);
+  display: flex;
+  justify-content: flex-end;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.top-nav a,
+.panel a {
+  color: #1f6f35;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.top-nav a:hover,
+.panel a:hover {
+  text-decoration: underline;
+}
+
+.panel {
   width: min(100%, 560px);
   border: 1px solid #d8dee8;
   border-radius: 8px;
@@ -30,7 +51,7 @@ h1 {
   line-height: 1.15;
 }
 
-.status-panel p {
+.panel p {
   margin: 16px 0;
   color: #4d5b70;
 }
@@ -85,4 +106,95 @@ code {
   color: #172033;
   font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
   font-size: 14px;
+}
+
+.actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 24px;
+}
+
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 42px;
+  padding: 0 16px;
+  border: 1px solid #c4cfdd;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #172033;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.button.primary {
+  border-color: #386641;
+  background: #386641;
+  color: #ffffff;
+}
+
+.button:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
+.auth-form {
+  display: grid;
+  gap: 16px;
+  margin: 24px 0;
+}
+
+.auth-form label {
+  display: grid;
+  gap: 6px;
+  color: #172033;
+  font-weight: 700;
+}
+
+.auth-form input {
+  min-height: 42px;
+  border: 1px solid #c4cfdd;
+  border-radius: 6px;
+  padding: 0 12px;
+  color: #172033;
+  font: inherit;
+}
+
+.form-error {
+  border: 1px solid #f1b4b4;
+  border-radius: 6px;
+  padding: 10px 12px;
+  background: #fff1f1;
+  color: #9b2c2c;
+}
+
+.page-message {
+  margin-top: 25svh;
+  color: #4d5b70;
+}
+
+.user-details {
+  margin: 24px 0;
+}
+
+.user-details div {
+  display: grid;
+  grid-template-columns: 90px 1fr;
+  gap: 12px;
+  padding: 12px 0;
+  border-top: 1px solid #d8dee8;
+}
+
+.user-details dt {
+  color: #4d5b70;
+  font-weight: 700;
+}
+
+.user-details dd {
+  margin: 0;
+  color: #172033;
 }
