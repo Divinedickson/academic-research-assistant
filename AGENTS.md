@@ -4,7 +4,7 @@ This repository is being built milestone by milestone. Keep changes scoped to th
 
 ## Current Milestone
 
-Milestone 6 adds embeddings and semantic retrieval:
+Milestone 7 adds grounded answer generation with an external LLM provider:
 
 - Django backend in `backend/`
 - React TypeScript Vite frontend in `frontend/`
@@ -32,10 +32,16 @@ Milestone 6 adds embeddings and semantic retrieval:
 - Synchronous document embedding endpoint at `/api/documents/{id}/embed/`
 - Collection semantic search endpoint at `/api/collections/{id}/search/`
 - Collection detail embed controls and semantic search UI
+- Replaceable LLM provider interface
+- Groq-backed LLM provider using the documented OpenAI-compatible chat completions API
+- Collection-scoped grounded answer endpoint at `/api/collections/{id}/ask/`
+- Backend-assigned source IDs and citation validation for retrieved source references
+- Collection detail question-and-answer panel with expandable citation passages
 
 ## Guardrails
 
-- Do not add LLM integration, question answering, conversations, OCR, Celery/background workers, automatic summaries, or RAG answer generation until those milestones are approved.
+- Do not add conversation history, streaming, OCR, Celery/background workers, automatic summaries, or deployment features until those milestones are approved.
+- Citation validation checks that referenced source IDs were retrieved; it does not guarantee hallucination-free answers.
 - Do not commit `.env` files, uploaded PDFs, model weights, virtual environments, `node_modules`, or generated build outputs.
 - Preserve provider boundaries in future RAG milestones so LLM and embedding providers remain replaceable.
 - Keep ownership and citation requirements central when later adding user data and document retrieval.

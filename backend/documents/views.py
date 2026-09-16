@@ -7,12 +7,26 @@ from rest_framework.views import APIView
 
 from .models import Document, ResearchCollection
 from .serializers import (
+    CollectionAskRequestSerializer,
     DocumentChunkSerializer,
     DocumentSerializer,
     ResearchCollectionSerializer,
     SemanticSearchRequestSerializer,
 )
-from .services import EmbeddingError, embed_document, process_document, semantic_search_collection
+from .services import (
+    AnswerGenerationError,
+    EmbeddingError,
+    LLMAuthenticationError,
+    LLMConfigurationError,
+    LLMError,
+    LLMProviderUnavailableError,
+    LLMRateLimitError,
+    LLMTimeoutError,
+    answer_collection_question,
+    embed_document,
+    process_document,
+    semantic_search_collection,
+)
 
 
 class ResearchCollectionViewSet(viewsets.ModelViewSet):
@@ -130,5 +144,79 @@ class CollectionSemanticSearchView(APIView):
                     'higher is more similar. cosine_distance is 1 - similarity, where lower is closer.'
                 ),
                 'results': [result.__dict__ for result in results],
+            },
+        )
+
+
+def _answer_source_payload(source):
+    return {
+        'source_id': source.source_id,
+        'chunk_id': source.chunk_id,
+        'document_id': source.document_id,
+        'document_title': source.document_title,
+        'original_filename': source.original_filename,
+        'page_number': source.page_number,
+        'chunk_index': source.chunk_index,
+        'passage': source.passage,
+        'cosine_distance': source.cosine_distance,
+        'similarity_score': source.similarity_score,
+    }
+
+
+class CollectionAskView(APIView):
+    permission_classes = [IsAuthenticated]
+    throttle_scope = 'collection_ask'
+
+    def post(self, request, collection_id):
+        collection = generics.get_object_or_404(
+            ResearchCollection,
+            id=collection_id,
+            owner=request.user,
+        )
+        serializer = CollectionAskRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        try:
+            answer = answer_collection_question(
+                collection,
+                question=serializer.validated_data['question'],
+                top_k=serializer.validated_data['top_k'],
+            )
+        except LLMConfigurationError as exc:
+            return Response({'detail': str(exc)}, status=503)
+        except LLMAuthenticationError as exc:
+            return Response({'detail': str(exc)}, status=503)
+        except LLMRateLimitError as exc:
+            return Response({'detail': str(exc)}, status=429)
+        except LLMTimeoutError as exc:
+            return Response({'detail': str(exc)}, status=504)
+        except LLMProviderUnavailableError as exc:
+            return Response({'detail': str(exc)}, status=503)
+        except LLMError as exc:
+            return Response({'detail': str(exc)}, status=502)
+        except AnswerGenerationError:
+            return Response(
+                {'detail': 'The LLM provider returned an answer with invalid citations.'},
+                status=502,
+            )
+
+        return Response(
+            {
+                'question': answer.question,
+                'answer': answer.answer,
+                'insufficient_evidence': answer.insufficient_evidence,
+                'model': answer.model,
+                'citation_validation_note': (
+                    'Citation validation only checks that referenced source IDs were retrieved; '
+                    'it does not guarantee the answer is hallucination-free.'
+                ),
+                'citations': [
+                    _answer_source_payload(source)
+                    for source in answer.citations
+                ],
+                'retrieved_evidence': [
+                    _answer_source_payload(source)
+                    for source in answer.retrieved_evidence
+                ],
             },
         )

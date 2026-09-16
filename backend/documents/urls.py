@@ -2,6 +2,7 @@ from django.urls import path
 from rest_framework.routers import SimpleRouter
 
 from .views import (
+    CollectionAskView,
     CollectionDocumentListCreateView,
     CollectionSemanticSearchView,
     DocumentChunkListView,
@@ -25,6 +26,11 @@ urlpatterns = [
         'collections/<int:collection_id>/search/',
         CollectionSemanticSearchView.as_view(),
         name='collection-search',
+    ),
+    path(
+        'collections/<int:collection_id>/ask/',
+        CollectionAskView.as_view(),
+        name='collection-ask',
     ),
     path('documents/<int:pk>/', DocumentDetailView.as_view(), name='document-detail'),
     path('documents/<int:pk>/process/', DocumentProcessView.as_view(), name='document-process'),

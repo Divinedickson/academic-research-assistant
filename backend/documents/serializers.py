@@ -7,12 +7,20 @@ from .models import Document, DocumentChunk, ResearchCollection
 
 
 class ResearchCollectionSerializer(serializers.ModelSerializer):
-    document_count = serializers.IntegerField(read_only=True)
+    document_count = serializers.SerializerMethodField()
 
     class Meta:
         model = ResearchCollection
         fields = ['id', 'name', 'description', 'document_count', 'created_at', 'updated_at']
         read_only_fields = ['id', 'document_count', 'created_at', 'updated_at']
+
+    def get_document_count(self, obj):
+        annotated_count = getattr(obj, 'document_count', None)
+
+        if annotated_count is not None:
+            return annotated_count
+
+        return obj.documents.count()
 
 
 class DocumentSerializer(serializers.ModelSerializer):
@@ -114,3 +122,26 @@ class SemanticSearchResponseSerializer(serializers.Serializer):
     top_k = serializers.IntegerField()
     score_description = serializers.CharField()
     results = SemanticSearchResultSerializer(many=True)
+
+
+class CollectionAskRequestSerializer(serializers.Serializer):
+    question = serializers.CharField(allow_blank=False, trim_whitespace=True)
+    top_k = serializers.IntegerField(min_value=1, default=5)
+
+    def validate_question(self, value):
+        max_length = settings.LLM_QUESTION_MAX_CHARS
+
+        if len(value) > max_length:
+            raise serializers.ValidationError(
+                f'Question must be no longer than {max_length} characters.',
+            )
+
+        return value
+
+    def validate_top_k(self, value):
+        max_top_k = settings.LLM_ASK_TOP_K_MAX
+
+        if value > max_top_k:
+            raise serializers.ValidationError(f'top_k must be no greater than {max_top_k}.')
+
+        return value

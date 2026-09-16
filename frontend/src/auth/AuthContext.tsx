@@ -43,6 +43,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(currentUser)
   }
 
+  async function refreshAccessToken() {
+    const refresh = localStorage.getItem(REFRESH_TOKEN_STORAGE_KEY)
+
+    if (!refresh) {
+      return null
+    }
+
+    try {
+      const refreshResponse = await apiClient.request<RefreshResponse>(
+        '/api/auth/token/refresh/',
+        {
+          method: 'POST',
+          auth: false,
+          body: JSON.stringify({ refresh }),
+        },
+      )
+      apiClient.setAccessToken(refreshResponse.access)
+      return refreshResponse.access
+    } catch {
+      clearSession()
+      setUser(null)
+      return null
+    }
+  }
+
   async function register(input: RegisterInput) {
     const authResponse = await apiClient.request<AuthResponse>('/api/auth/register/', {
       method: 'POST',
@@ -69,24 +94,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   useEffect(() => {
-    async function restoreSession() {
-      const refresh = localStorage.getItem(REFRESH_TOKEN_STORAGE_KEY)
+    apiClient.setUnauthorizedHandler(refreshAccessToken)
 
-      if (!refresh) {
+    return () => {
+      apiClient.setUnauthorizedHandler(null)
+    }
+  })
+
+  useEffect(() => {
+    async function restoreSession() {
+      const access = await refreshAccessToken()
+
+      if (!access) {
         setIsLoading(false)
         return
       }
 
       try {
-        const refreshResponse = await apiClient.request<RefreshResponse>(
-          '/api/auth/token/refresh/',
-          {
-            method: 'POST',
-            auth: false,
-            body: JSON.stringify({ refresh }),
-          },
-        )
-        apiClient.setAccessToken(refreshResponse.access)
         await loadCurrentUser()
       } catch {
         clearSession()

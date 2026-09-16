@@ -152,6 +152,28 @@ EMBEDDING_MODEL_NAME = os.environ.get(
 )
 EMBEDDING_DIMENSIONS = int(os.environ.get('EMBEDDING_DIMENSIONS', 384))
 EMBEDDING_BATCH_SIZE = int(os.environ.get('EMBEDDING_BATCH_SIZE', 32))
+LLM_PROVIDER = os.environ.get('LLM_PROVIDER', 'groq')
+LLM_MODEL = os.environ.get('LLM_MODEL', 'openai/gpt-oss-20b')
+LLM_API_KEY = os.environ.get('GROQ_API_KEY', '')
+LLM_API_BASE_URL = os.environ.get('LLM_API_BASE_URL', 'https://api.groq.com/openai/v1')
+LLM_TIMEOUT_SECONDS = float(os.environ.get('LLM_TIMEOUT_SECONDS', 30))
+LLM_MAX_CONTEXT_CHARS = int(os.environ.get('LLM_MAX_CONTEXT_CHARS', 12000))
+LLM_MAX_SOURCE_CHARS = int(os.environ.get('LLM_MAX_SOURCE_CHARS', 2500))
+LLM_MAX_OUTPUT_TOKENS = int(os.environ.get('LLM_MAX_OUTPUT_TOKENS', 700))
+LLM_MODEL_CONTEXT_WINDOW = int(os.environ.get('LLM_MODEL_CONTEXT_WINDOW', 131072))
+LLM_PROMPT_OVERHEAD_TOKENS = int(os.environ.get('LLM_PROMPT_OVERHEAD_TOKENS', 1200))
+LLM_QUESTION_MAX_CHARS = int(os.environ.get('LLM_QUESTION_MAX_CHARS', 1000))
+LLM_ASK_TOP_K_MAX = int(os.environ.get('LLM_ASK_TOP_K_MAX', 10))
+LLM_TEMPERATURE = float(os.environ.get('LLM_TEMPERATURE', 0.1))
+LLM_ASK_THROTTLE_RATE = os.environ.get('LLM_ASK_THROTTLE_RATE', '10/minute')
+LLM_GROQ_SUPPORTED_MODELS = [
+    model.strip()
+    for model in os.environ.get(
+        'LLM_GROQ_SUPPORTED_MODELS',
+        'openai/gpt-oss-20b,openai/gpt-oss-120b,llama-3.1-8b-instant,llama-3.3-70b-versatile',
+    ).split(',')
+    if model.strip()
+]
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
@@ -171,6 +193,12 @@ REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
         'rest_framework_simplejwt.authentication.JWTAuthentication',
     ],
+    'DEFAULT_THROTTLE_CLASSES': [
+        'rest_framework.throttling.ScopedRateThrottle',
+    ],
+    'DEFAULT_THROTTLE_RATES': {
+        'collection_ask': LLM_ASK_THROTTLE_RATE,
+    },
     'DEFAULT_RENDERER_CLASSES': [
         'rest_framework.renderers.JSONRenderer',
         'rest_framework.renderers.BrowsableAPIRenderer',

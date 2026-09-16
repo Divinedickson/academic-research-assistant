@@ -15,15 +15,24 @@ from rest_framework.test import APITestCase
 
 from .models import Document, DocumentChunk, ResearchCollection
 from .services import (
+    AnswerGenerationError,
     EmbeddingError,
+    LLMAuthenticationError,
+    LLMConfigurationError,
+    LLMProviderUnavailableError,
+    LLMRateLimitError,
+    LLMTimeoutError,
     PdfExtractionError,
+    answer_collection_question,
     chunk_pages,
     embed_document,
     extract_pdf_pages,
     process_document,
     semantic_search_collection,
 )
+from .services.embeddings import SearchResult
 from .services.extraction import ExtractedPage
+from .services.llm import GroqLLMProvider, LLMMessage
 
 
 User = get_user_model()
@@ -83,6 +92,61 @@ class FakeEmbeddingProvider:
             return self.vectors[start:start + len(texts)]
 
         return [vector() for _text in texts]
+
+
+class FakeLLMProvider:
+    model_name = 'fake-llm'
+
+    def __init__(self, responses=None, error=None):
+        self.responses = responses or ['Answer from evidence [S1].']
+        self.error = error
+        self.calls = []
+
+    def generate(self, messages, max_output_tokens, timeout_seconds):
+        self.calls.append(
+            {
+                'messages': messages,
+                'max_output_tokens': max_output_tokens,
+                'timeout_seconds': timeout_seconds,
+            },
+        )
+
+        if self.error:
+            raise self.error
+
+        index = min(len(self.calls) - 1, len(self.responses) - 1)
+
+        return type(
+            'FakeLLMResponse',
+            (),
+            {
+                'content': self.responses[index],
+                'model': self.model_name,
+            },
+        )()
+
+
+def search_result(
+    chunk_id=1,
+    document_id=1,
+    document_title='Research Paper',
+    original_filename='paper.pdf',
+    page_number=1,
+    chunk_index=0,
+    content='The researchers found a measurable improvement.',
+    cosine_distance=0.1,
+):
+    return SearchResult(
+        chunk_id=chunk_id,
+        document_id=document_id,
+        document_title=document_title,
+        original_filename=original_filename,
+        page_number=page_number,
+        chunk_index=chunk_index,
+        content=content,
+        cosine_distance=cosine_distance,
+        similarity_score=1.0 - cosine_distance,
+    )
 
 
 class DocumentApiTests(APITestCase):
@@ -157,6 +221,7 @@ class DocumentApiTests(APITestCase):
         self.assertEqual(create_response.status_code, status.HTTP_201_CREATED)
         collection = ResearchCollection.objects.get(id=create_response.data['id'])
         self.assertEqual(collection.owner, self.user)
+        self.assertEqual(create_response.data['document_count'], 0)
 
         list_response = self.client.get(reverse('collection-list'))
         self.assertEqual(list_response.status_code, status.HTTP_200_OK)
@@ -870,3 +935,288 @@ class EmbeddingAndSearchTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data['results'], [])
         self.assertIn('higher is more similar', response.data['score_description'])
+
+
+class GroundedAnswerTests(APITestCase):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.media_root = tempfile.mkdtemp()
+        cls.override = override_settings(MEDIA_ROOT=cls.media_root)
+        cls.override.enable()
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.override.disable()
+        shutil.rmtree(cls.media_root, ignore_errors=True)
+        super().tearDownClass()
+
+    def setUp(self):
+        self.user = User.objects.create_user(
+            username='asker',
+            email='asker@example.com',
+            password='ResearchPass123!',
+        )
+        self.other_user = User.objects.create_user(
+            username='other-asker',
+            email='other-asker@example.com',
+            password='ResearchPass123!',
+        )
+        self.collection = ResearchCollection.objects.create(owner=self.user, name='QA Papers')
+        self.other_collection = ResearchCollection.objects.create(
+            owner=self.other_user,
+            name='Private QA Papers',
+        )
+        self.client.force_authenticate(user=self.user)
+
+    def test_answer_endpoint_authentication_and_ownership(self):
+        self.client.force_authenticate(user=None)
+        unauthenticated = self.client.post(
+            reverse('collection-ask', kwargs={'collection_id': self.collection.id}),
+            {'question': 'What happened?', 'top_k': 5},
+            format='json',
+        )
+        self.client.force_authenticate(user=self.user)
+        other_response = self.client.post(
+            reverse('collection-ask', kwargs={'collection_id': self.other_collection.id}),
+            {'question': 'What happened?', 'top_k': 5},
+            format='json',
+        )
+
+        self.assertEqual(unauthenticated.status_code, status.HTTP_401_UNAUTHORIZED)
+        self.assertEqual(other_response.status_code, status.HTTP_404_NOT_FOUND)
+
+    @override_settings(LLM_QUESTION_MAX_CHARS=12, LLM_ASK_TOP_K_MAX=3)
+    def test_answer_endpoint_validates_question_and_top_k(self):
+        blank_response = self.client.post(
+            reverse('collection-ask', kwargs={'collection_id': self.collection.id}),
+            {'question': '   ', 'top_k': 1},
+            format='json',
+        )
+        long_response = self.client.post(
+            reverse('collection-ask', kwargs={'collection_id': self.collection.id}),
+            {'question': 'This question is much too long', 'top_k': 1},
+            format='json',
+        )
+        top_k_response = self.client.post(
+            reverse('collection-ask', kwargs={'collection_id': self.collection.id}),
+            {'question': 'Valid?', 'top_k': 4},
+            format='json',
+        )
+
+        self.assertEqual(blank_response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(long_response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(top_k_response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_empty_retrieval_returns_insufficient_evidence_without_llm_call(self):
+        provider = FakeLLMProvider()
+
+        with patch('documents.services.answering.semantic_search_collection', return_value=[]):
+            answer = answer_collection_question(
+                self.collection,
+                'What did they find?',
+                provider=provider,
+            )
+
+        self.assertTrue(answer.insufficient_evidence)
+        self.assertEqual(answer.citations, [])
+        self.assertEqual(provider.calls, [])
+
+    @override_settings(LLM_MAX_CONTEXT_CHARS=160, LLM_MAX_SOURCE_CHARS=60)
+    def test_context_limits_trim_and_bound_supplied_passages(self):
+        provider = FakeLLMProvider(responses=['The first source is enough [S1].'])
+        results = [
+            search_result(chunk_id=1, content='A' * 200),
+            search_result(chunk_id=2, content='B' * 200),
+        ]
+
+        with patch('documents.services.answering.semantic_search_collection', return_value=results):
+            answer = answer_collection_question(
+                self.collection,
+                'What did they find?',
+                provider=provider,
+            )
+
+        supplied_prompt = provider.calls[0]['messages'][1].content
+        self.assertIn('[S1]', supplied_prompt)
+        self.assertLessEqual(len(answer.retrieved_evidence[0].passage), 60)
+        self.assertEqual(answer.citations[0].passage, answer.retrieved_evidence[0].passage)
+
+    def test_correct_source_mapping_and_valid_citation_response(self):
+        provider = FakeLLMProvider(responses=['The result appears on the second source [S2].'])
+        results = [
+            search_result(chunk_id=10, document_id=20, page_number=3, content='Background.'),
+            search_result(
+                chunk_id=11,
+                document_id=21,
+                document_title='Findings Paper',
+                page_number=7,
+                content='The intervention improved recall.',
+            ),
+        ]
+
+        with patch('documents.services.answering.semantic_search_collection', return_value=results):
+            answer = answer_collection_question(
+                self.collection,
+                'What improved?',
+                provider=provider,
+            )
+
+        self.assertFalse(answer.insufficient_evidence)
+        self.assertEqual([source.source_id for source in answer.citations], ['S2'])
+        self.assertEqual(answer.citations[0].document_title, 'Findings Paper')
+        self.assertEqual(answer.citations[0].page_number, 7)
+
+    def test_unknown_citation_gets_one_correction_attempt(self):
+        provider = FakeLLMProvider(
+            responses=[
+                'This cites something unknown [S9].',
+                'This cites the retrieved source [S1].',
+            ],
+        )
+
+        with patch(
+            'documents.services.answering.semantic_search_collection',
+            return_value=[search_result()],
+        ):
+            answer = answer_collection_question(
+                self.collection,
+                'What happened?',
+                provider=provider,
+            )
+
+        self.assertEqual(len(provider.calls), 2)
+        self.assertIn('unknown source', provider.calls[1]['messages'][1].content)
+        self.assertEqual([source.source_id for source in answer.citations], ['S1'])
+
+    def test_missing_citation_after_correction_is_error(self):
+        provider = FakeLLMProvider(
+            responses=[
+                'This answer has no citation.',
+                'This still has no citation.',
+            ],
+        )
+
+        with patch(
+            'documents.services.answering.semantic_search_collection',
+            return_value=[search_result()],
+        ):
+            with self.assertRaises(AnswerGenerationError):
+                answer_collection_question(
+                    self.collection,
+                    'What happened?',
+                    provider=provider,
+                )
+
+        self.assertEqual(len(provider.calls), 2)
+
+    def test_model_can_return_insufficient_evidence(self):
+        provider = FakeLLMProvider(
+            responses=['INSUFFICIENT_EVIDENCE: The passages do not describe the outcome.'],
+        )
+
+        with patch(
+            'documents.services.answering.semantic_search_collection',
+            return_value=[search_result()],
+        ):
+            answer = answer_collection_question(
+                self.collection,
+                'What was the sample size?',
+                provider=provider,
+            )
+
+        self.assertTrue(answer.insufficient_evidence)
+        self.assertEqual(answer.citations, [])
+
+    def test_missing_api_key_is_safe_configuration_error_when_generation_requested(self):
+        provider = GroqLLMProvider(api_key='', supported_models=['openai/gpt-oss-20b'])
+
+        with patch(
+            'documents.services.answering.semantic_search_collection',
+            return_value=[search_result()],
+        ):
+            with self.assertRaises(LLMConfigurationError):
+                answer_collection_question(
+                    self.collection,
+                    'What happened?',
+                    provider=provider,
+                )
+
+    def test_groq_provider_rejects_unsupported_model_before_request(self):
+        provider = GroqLLMProvider(
+            api_key='test-key',
+            model_name='unsupported-model',
+            supported_models=['openai/gpt-oss-20b'],
+        )
+
+        with self.assertRaises(LLMConfigurationError):
+            provider.generate(
+                [LLMMessage(role='user', content='Hello')],
+                max_output_tokens=10,
+                timeout_seconds=1,
+            )
+
+    def test_endpoint_maps_provider_errors_safely(self):
+        errors = [
+            (LLMConfigurationError('Missing config.'), status.HTTP_503_SERVICE_UNAVAILABLE),
+            (LLMAuthenticationError('Bad key.'), status.HTTP_503_SERVICE_UNAVAILABLE),
+            (LLMRateLimitError('Rate limited.'), status.HTTP_429_TOO_MANY_REQUESTS),
+            (LLMTimeoutError('Timed out.'), status.HTTP_504_GATEWAY_TIMEOUT),
+            (LLMProviderUnavailableError('Provider down.'), status.HTTP_503_SERVICE_UNAVAILABLE),
+        ]
+
+        for error, expected_status in errors:
+            with self.subTest(error=type(error).__name__):
+                with patch('documents.views.answer_collection_question', side_effect=error):
+                    response = self.client.post(
+                        reverse('collection-ask', kwargs={'collection_id': self.collection.id}),
+                        {'question': 'What happened?', 'top_k': 2},
+                        format='json',
+                    )
+
+                self.assertEqual(response.status_code, expected_status)
+                self.assertIn('detail', response.data)
+
+    def test_endpoint_returns_citations_and_retrieved_evidence(self):
+        with patch(
+            'documents.views.answer_collection_question',
+            return_value=type(
+                'FakeAnswer',
+                (),
+                {
+                    'question': 'What happened?',
+                    'answer': 'The paper reports an improvement [S1].',
+                    'insufficient_evidence': False,
+                    'model': 'fake-llm',
+                    'citations': [
+                        type(
+                            'FakeSource',
+                            (),
+                            {
+                                'source_id': 'S1',
+                                'chunk_id': 1,
+                                'document_id': 2,
+                                'document_title': 'Paper',
+                                'original_filename': 'paper.pdf',
+                                'page_number': 4,
+                                'chunk_index': 0,
+                                'passage': '<script>alert("x")</script>',
+                                'cosine_distance': 0.2,
+                                'similarity_score': 0.8,
+                            },
+                        )(),
+                    ],
+                    'retrieved_evidence': [],
+                },
+            )(),
+        ):
+            response = self.client.post(
+                reverse('collection-ask', kwargs={'collection_id': self.collection.id}),
+                {'question': 'What happened?', 'top_k': 2},
+                format='json',
+            )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['citations'][0]['page_number'], 4)
+        self.assertEqual(response.data['citations'][0]['passage'], '<script>alert("x")</script>')
+        self.assertIn('does not guarantee', response.data['citation_validation_note'])

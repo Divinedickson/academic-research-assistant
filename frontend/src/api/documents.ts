@@ -50,6 +50,29 @@ export type SemanticSearchResponse = {
   results: SemanticSearchResult[]
 }
 
+export type AnswerCitation = {
+  source_id: string
+  chunk_id: number
+  document_id: number
+  document_title: string
+  original_filename: string
+  page_number: number
+  chunk_index: number
+  passage: string
+  cosine_distance: number
+  similarity_score: number
+}
+
+export type CollectionAnswerResponse = {
+  question: string
+  answer: string
+  insufficient_evidence: boolean
+  model: string
+  citation_validation_note: string
+  citations: AnswerCitation[]
+  retrieved_evidence: AnswerCitation[]
+}
+
 export function listCollections() {
   return apiClient.request<ResearchCollection[]>('/api/collections/')
 }
@@ -123,6 +146,13 @@ export function listDocumentChunks(id: number) {
 
 export function searchCollection(collectionId: number, input: { query: string; top_k: number }) {
   return apiClient.request<SemanticSearchResponse>(`/api/collections/${collectionId}/search/`, {
+    method: 'POST',
+    body: JSON.stringify(input),
+  })
+}
+
+export function askCollection(collectionId: number, input: { question: string; top_k: number }) {
+  return apiClient.request<CollectionAnswerResponse>(`/api/collections/${collectionId}/ask/`, {
     method: 'POST',
     body: JSON.stringify(input),
   })

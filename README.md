@@ -2,7 +2,7 @@
 
 A full-stack research assistant for academic literature. The application will let users upload legally obtained or open-access academic PDFs, ask questions about their contents, and receive grounded answers with citations.
 
-This repository is being implemented in milestones. Milestone 6 adds local embeddings and semantic retrieval with pgvector.
+This repository is being implemented in milestones. Milestone 7 adds grounded answer generation using a replaceable external LLM provider.
 
 ## Current Stack
 
@@ -11,7 +11,7 @@ This repository is being implemented in milestones. Milestone 6 adds local embed
 - Database: PostgreSQL with pgvector via Docker Compose
 - Local development CORS configured for Vite on port `5173`
 
-Conversations, RAG answer generation, OCR, background workers, and LLM integrations are intentionally not configured yet. A free external LLM API will be added later behind a replaceable provider interface.
+Conversation history, streaming, OCR, background workers, automatic summaries, and deployment automation are intentionally not configured yet.
 
 ## Project Structure
 
@@ -70,6 +70,7 @@ POST   /api/documents/{id}/process/
 GET    /api/documents/{id}/chunks/
 POST   /api/documents/{id}/embed/
 POST   /api/collections/{id}/search/
+POST   /api/collections/{id}/ask/
 ```
 
 PDF uploads use `multipart/form-data`, require authentication, and are limited by `DOCUMENT_UPLOAD_MAX_BYTES`.
@@ -103,9 +104,48 @@ Search concepts:
 
 - Keyword search matches exact words or lexical patterns.
 - Semantic vector search compares embedding vectors, so it can match related meaning even when wording differs.
-- RAG answer generation retrieves evidence and then asks an LLM to write a grounded answer. That generation stage has not been added yet.
+- RAG answer generation retrieves evidence and then asks an LLM to write a grounded answer with citations.
 
 Embedding and semantic search are synchronous in this milestone. Background processing should be considered before production.
+
+## Grounded Answer Generation
+
+The initial LLM provider is Groq:
+
+```env
+LLM_PROVIDER=groq
+GROQ_API_KEY=replace-with-your-groq-api-key
+LLM_MODEL=openai/gpt-oss-20b
+LLM_API_BASE_URL=https://api.groq.com/openai/v1
+LLM_TIMEOUT_SECONDS=30
+LLM_MAX_CONTEXT_CHARS=12000
+LLM_MAX_SOURCE_CHARS=2500
+LLM_MAX_OUTPUT_TOKENS=700
+LLM_MODEL_CONTEXT_WINDOW=131072
+LLM_PROMPT_OVERHEAD_TOKENS=1200
+LLM_QUESTION_MAX_CHARS=1000
+LLM_ASK_TOP_K_MAX=10
+LLM_TEMPERATURE=0.1
+LLM_ASK_THROTTLE_RATE=10/minute
+```
+
+The backend does not require `GROQ_API_KEY` at Django startup. If the key is missing, answer generation returns a safe configuration error only when `/api/collections/{id}/ask/` is requested.
+
+The answer flow is:
+
+1. Validate the authenticated user's collection ownership.
+2. Reuse collection-scoped semantic retrieval to fetch embedded chunks.
+3. Assign backend source IDs such as `S1` and `S2`.
+4. Send the question and bounded source passages to the configured LLM provider.
+5. Require inline citations like `[S1]`.
+6. Validate that cited source IDs were retrieved.
+7. Return cited sources with paper title, original filename, PDF page number, and the exact passage supplied to the model.
+
+Citation validation checks source references only. It does not prove factual support and does not guarantee hallucination-free answers.
+
+Questions and selected excerpts are sent to the external LLM provider. Use legally obtained or open-access papers, avoid sensitive or confidential content on free tiers, and review the provider's current terms before demonstrations. Free-tier availability and rate limits can change.
+
+Groq-specific code is isolated behind the LLM provider interface. Local Sentence Transformers embeddings remain unchanged.
 
 ## Database Setup
 
@@ -170,7 +210,29 @@ EMBEDDING_PROVIDER=sentence_transformers
 EMBEDDING_MODEL_NAME=sentence-transformers/all-MiniLM-L6-v2
 EMBEDDING_DIMENSIONS=384
 EMBEDDING_BATCH_SIZE=32
+LLM_PROVIDER=groq
+GROQ_API_KEY=replace-with-your-groq-api-key
+LLM_MODEL=openai/gpt-oss-20b
+LLM_TIMEOUT_SECONDS=30
+LLM_MAX_CONTEXT_CHARS=12000
+LLM_MAX_OUTPUT_TOKENS=700
 ```
+
+## Optional Real API Smoke Test
+
+Automated tests mock the LLM provider and make no real API calls. To manually test Groq with an open-access PDF:
+
+1. Add your Groq key to `backend/.env` as `GROQ_API_KEY`.
+2. Start PostgreSQL, the Django server, and the Vite frontend.
+3. Register or log in.
+4. Create a collection.
+5. Upload a small open-access, text-based academic PDF.
+6. Process the paper.
+7. Embed the paper.
+8. Ask a question whose answer appears in the paper.
+9. Confirm the answer cites source IDs and that each citation expands to the correct paper title, PDF page number, and passage.
+
+Do not paste the API key into chat, commit it, or put it in frontend code.
 
 ## Token Storage
 

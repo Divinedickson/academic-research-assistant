@@ -4,6 +4,8 @@ type RequestOptions = RequestInit & {
   auth?: boolean
 }
 
+type UnauthorizedHandler = () => Promise<string | null>
+
 export class ApiError extends Error {
   status: number
   data: unknown
@@ -17,12 +19,17 @@ export class ApiError extends Error {
 
 class ApiClient {
   private accessToken: string | null = null
+  private unauthorizedHandler: UnauthorizedHandler | null = null
 
   setAccessToken(token: string | null) {
     this.accessToken = token
   }
 
-  async request<T>(path: string, options: RequestOptions = {}): Promise<T> {
+  setUnauthorizedHandler(handler: UnauthorizedHandler | null) {
+    this.unauthorizedHandler = handler
+  }
+
+  async request<T>(path: string, options: RequestOptions = {}, hasRetried = false): Promise<T> {
     const headers = new Headers(options.headers)
 
     if (options.body && !(options.body instanceof FormData)) {
@@ -39,6 +46,20 @@ class ApiClient {
     })
     const text = await response.text()
     const data = text ? JSON.parse(text) : null
+
+    if (
+      response.status === 401 &&
+      options.auth !== false &&
+      !hasRetried &&
+      this.unauthorizedHandler
+    ) {
+      const refreshedAccessToken = await this.unauthorizedHandler()
+
+      if (refreshedAccessToken) {
+        this.setAccessToken(refreshedAccessToken)
+        return this.request<T>(path, options, true)
+      }
+    }
 
     if (!response.ok) {
       throw new ApiError(response.status, data)

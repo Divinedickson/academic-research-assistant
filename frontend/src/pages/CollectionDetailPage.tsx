@@ -2,10 +2,12 @@ import { type FormEvent, useCallback, useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { ApiError } from '../api/client'
 import {
+  type CollectionAnswerResponse,
   type Document,
   type DocumentChunk,
   type SemanticSearchResult,
   type ResearchCollection,
+  askCollection,
   deleteDocument,
   embedDocument,
   getCollection,
@@ -55,6 +57,11 @@ export function CollectionDetailPage() {
   const [searchResults, setSearchResults] = useState<SemanticSearchResult[]>([])
   const [scoreDescription, setScoreDescription] = useState('')
   const [isSearching, setIsSearching] = useState(false)
+  const [question, setQuestion] = useState('')
+  const [answerTopK, setAnswerTopK] = useState(5)
+  const [answerResponse, setAnswerResponse] = useState<CollectionAnswerResponse | null>(null)
+  const [askError, setAskError] = useState('')
+  const [isAsking, setIsAsking] = useState(false)
 
   const loadCollection = useCallback(async () => {
     try {
@@ -197,6 +204,25 @@ export function CollectionDetailPage() {
       setError(getErrorMessage(caughtError))
     } finally {
       setIsSearching(false)
+    }
+  }
+
+  async function handleAsk(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    setIsAsking(true)
+    setAskError('')
+    setAnswerResponse(null)
+
+    try {
+      const response = await askCollection(collectionId, {
+        question,
+        top_k: answerTopK,
+      })
+      setAnswerResponse(response)
+    } catch (caughtError) {
+      setAskError(getErrorMessage(caughtError))
+    } finally {
+      setIsAsking(false)
     }
   }
 
@@ -371,6 +397,82 @@ export function CollectionDetailPage() {
         </div>
         {scoreDescription && searchResults.length === 0 ? (
           <p>No embedded chunks matched this search.</p>
+        ) : null}
+      </section>
+
+      <section className="panel">
+        <h2>Ask this collection</h2>
+        <p>
+          Your question and selected excerpts from embedded papers will be sent to an external AI
+          provider to draft a grounded answer with citations.
+        </p>
+        <form className="auth-form" onSubmit={handleAsk}>
+          <label>
+            Question
+            <textarea
+              value={question}
+              onChange={(event) => setQuestion(event.target.value)}
+              required
+            />
+          </label>
+          <label>
+            Number of retrieved excerpts
+            <input
+              max={10}
+              min={1}
+              type="number"
+              value={answerTopK}
+              onChange={(event) => setAnswerTopK(Number(event.target.value))}
+            />
+          </label>
+          {askError ? <p className="form-error">{askError}</p> : null}
+          <button className="button primary" disabled={isAsking} type="submit">
+            {isAsking ? 'Asking...' : 'Generate grounded answer'}
+          </button>
+        </form>
+
+        {answerResponse ? (
+          <div className="answer-box">
+            <p className="status-note">Model: {answerResponse.model}</p>
+            {answerResponse.insufficient_evidence ? (
+              <p className="form-error">{answerResponse.answer}</p>
+            ) : (
+              <p className="answer-text">{answerResponse.answer}</p>
+            )}
+            <p className="status-note">{answerResponse.citation_validation_note}</p>
+
+            {answerResponse.citations.length > 0 ? (
+              <div className="citation-list">
+                <h3>Citations</h3>
+                {answerResponse.citations.map((citation) => (
+                  <details key={citation.source_id}>
+                    <summary>
+                      [{citation.source_id}] {citation.document_title}, PDF page number{' '}
+                      {citation.page_number}
+                    </summary>
+                    <p>{citation.passage}</p>
+                  </details>
+                ))}
+              </div>
+            ) : null}
+
+            {answerResponse.retrieved_evidence.length > 0 ? (
+              <details className="evidence-details">
+                <summary>Retrieved evidence sent to the AI provider</summary>
+                <div className="citation-list">
+                  {answerResponse.retrieved_evidence.map((evidence) => (
+                    <details key={evidence.source_id}>
+                      <summary>
+                        [{evidence.source_id}] {evidence.document_title}, PDF page number{' '}
+                        {evidence.page_number}
+                      </summary>
+                      <p>{evidence.passage}</p>
+                    </details>
+                  ))}
+                </div>
+              </details>
+            ) : null}
+          </div>
         ) : null}
       </section>
     </div>

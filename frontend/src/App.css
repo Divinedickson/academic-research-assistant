@@ -314,6 +314,43 @@ code {
   color: #64748b;
 }
 
+.answer-box {
+  display: grid;
+  gap: 14px;
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 1px solid #d8dee8;
+}
+
+.answer-text {
+  white-space: pre-wrap;
+}
+
+.citation-list {
+  display: grid;
+  gap: 10px;
+}
+
+.citation-list details,
+.evidence-details {
+  border: 1px solid #d8dee8;
+  border-radius: 6px;
+  padding: 12px;
+  background: #f7f9fc;
+}
+
+.citation-list summary,
+.evidence-details summary {
+  color: #172033;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.citation-list p {
+  margin: 10px 0 0;
+  white-space: pre-wrap;
+}
+
 @media (max-width: 640px) {
   .app-shell {
     padding: 20px;
