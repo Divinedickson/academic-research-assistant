@@ -1,6 +1,7 @@
 import { Link, Navigate, Route, Routes } from 'react-router-dom'
 import './App.css'
 import { ProtectedRoute } from './auth/ProtectedRoute'
+import { useAuth } from './auth/useAuth'
 import { CollectionDetailPage } from './pages/CollectionDetailPage'
 import { DashboardPage } from './pages/DashboardPage'
 import { HomePage } from './pages/HomePage'
@@ -8,35 +9,54 @@ import { LoginPage } from './pages/LoginPage'
 import { RegisterPage } from './pages/RegisterPage'
 
 function App() {
+  const { isAuthenticated } = useAuth()
+
   return (
-    <main className="app-shell">
+    <>
       <nav className="top-nav" aria-label="Main navigation">
-        <Link to="/">Home</Link>
-        <Link to="/dashboard">Dashboard</Link>
+        <Link className="brand-link" to="/">
+          Academic Research Assistant
+        </Link>
+        <div className="nav-actions">
+          {isAuthenticated ? (
+            <Link className="button primary small" to="/dashboard">
+              Open dashboard
+            </Link>
+          ) : (
+            <>
+              <Link to="/login">Sign in</Link>
+              <Link className="button primary small" to="/register">
+                Get started
+              </Link>
+            </>
+          )}
+        </div>
       </nav>
-      <Routes>
-        <Route path="/" element={<HomePage />} />
-        <Route path="/login" element={<LoginPage />} />
-        <Route path="/register" element={<RegisterPage />} />
-        <Route
-          path="/dashboard"
-          element={
-            <ProtectedRoute>
-              <DashboardPage />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/collections/:collectionId"
-          element={
-            <ProtectedRoute>
-              <CollectionDetailPage />
-            </ProtectedRoute>
-          }
-        />
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
-    </main>
+      <main className="app-shell">
+        <Routes>
+          <Route path="/" element={<HomePage />} />
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/register" element={<RegisterPage />} />
+          <Route
+            path="/dashboard"
+            element={
+              <ProtectedRoute>
+                <DashboardPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/collections/:collectionId"
+            element={
+              <ProtectedRoute>
+                <CollectionDetailPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </main>
+    </>
   )
 }
 
