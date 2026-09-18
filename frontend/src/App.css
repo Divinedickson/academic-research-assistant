@@ -18,10 +18,19 @@
 }
 
 .brand-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
   color: var(--color-text);
   font-size: 16px;
   font-weight: 600;
   text-decoration: none;
+}
+
+.brand-logo {
+  width: 30px;
+  height: 30px;
+  flex: 0 0 30px;
 }
 
 .nav-actions {
@@ -122,7 +131,9 @@ h3 {
 .landing-hero {
   display: flex;
   align-items: center;
-  padding: clamp(48px, 7vw, 88px) 0 clamp(40px, 6vw, 72px);
+  border: 1px solid #DBEAFE;
+  padding: clamp(48px, 7vw, 88px) clamp(24px, 5vw, 56px) clamp(40px, 6vw, 72px);
+  background: linear-gradient(125deg, #F8FAFC 0%, #EFF6FF 58%, #F5F3FF 100%);
 }
 
 .hero-copy {
@@ -145,6 +156,40 @@ h3 {
   font-size: 18px;
   line-height: 1.65;
   text-wrap: pretty;
+}
+
+.auth-page {
+  width: min(100%, 920px);
+  display: flex;
+  justify-content: center;
+  padding: clamp(24px, 5vw, 56px);
+  border: 1px solid var(--color-border);
+  background: linear-gradient(135deg, #F8FAFC 0%, #F5F7FF 62%, #F8F7FF 100%);
+}
+
+.auth-panel {
+  width: min(100%, 520px);
+  background: var(--color-card);
+}
+
+.auth-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 28px;
+  color: var(--color-text) !important;
+  font-weight: 600;
+}
+
+.auth-brand:hover {
+  color: var(--color-primary-hover) !important;
+  text-decoration: none !important;
+}
+
+.auth-logo {
+  width: 28px;
+  height: 28px;
+  flex: 0 0 28px;
 }
 
 .landing-section {
@@ -526,7 +571,7 @@ h3 {
   }
 
   .landing-hero {
-    padding: 36px 0 32px;
+    padding: 36px 24px 32px;
   }
 
   .hero-copy h1 {
@@ -543,6 +588,10 @@ h3 {
 
   .panel {
     padding: 24px;
+  }
+
+  .auth-page {
+    padding: 20px;
   }
 
   .item-row {

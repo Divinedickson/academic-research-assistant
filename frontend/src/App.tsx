@@ -2,6 +2,7 @@ import { Link, Navigate, Route, Routes } from 'react-router-dom'
 import './App.css'
 import { ProtectedRoute } from './auth/ProtectedRoute'
 import { useAuth } from './auth/useAuth'
+import { ProductLogo } from './components/ProductLogo'
 import { CollectionDetailPage } from './pages/CollectionDetailPage'
 import { DashboardPage } from './pages/DashboardPage'
 import { HomePage } from './pages/HomePage'
@@ -15,7 +16,8 @@ function App() {
     <>
       <nav className="top-nav" aria-label="Main navigation">
         <Link className="brand-link" to="/">
-          Academic Research Assistant
+          <ProductLogo className="brand-logo" />
+          <span>Academic Research Assistant</span>
         </Link>
         <div className="nav-actions">
           {isAuthenticated ? (

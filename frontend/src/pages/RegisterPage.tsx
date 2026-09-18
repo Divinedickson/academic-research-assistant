@@ -2,6 +2,7 @@ import { type FormEvent, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { getApiErrorMessage } from '../api/client'
 import { useAuth } from '../auth/useAuth'
+import { ProductLogo } from '../components/ProductLogo'
 
 export function RegisterPage() {
   const navigate = useNavigate()
@@ -34,10 +35,15 @@ export function RegisterPage() {
   }
 
   return (
-    <section className="panel">
-      <p className="eyebrow">Create account</p>
-      <h1>Register</h1>
-      <form className="auth-form" onSubmit={handleSubmit}>
+    <div className="auth-page">
+      <section className="panel auth-panel">
+        <Link className="auth-brand" to="/">
+          <ProductLogo className="auth-logo" />
+          <span>Academic Research Assistant</span>
+        </Link>
+        <p className="eyebrow">Create account</p>
+        <h1>Register</h1>
+        <form className="auth-form" onSubmit={handleSubmit}>
         <label>
           Username
           <input
@@ -81,10 +87,11 @@ export function RegisterPage() {
         <button className="button primary" disabled={isSubmitting} type="submit">
           {isSubmitting ? 'Creating account...' : 'Register'}
         </button>
-      </form>
-      <p>
-        Already have an account? <Link to="/login">Log in</Link>.
-      </p>
-    </section>
+        </form>
+        <p>
+          Already have an account? <Link to="/login">Log in</Link>.
+        </p>
+      </section>
+    </div>
   )
 }
