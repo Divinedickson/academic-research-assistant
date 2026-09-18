@@ -110,6 +110,46 @@ Search concepts:
 
 Embedding and semantic search are synchronous in this milestone. Background processing should be considered before production.
 
+### Lightweight ONNX deployment option
+
+The optional `onnx` provider reproduces the existing `all-MiniLM-L6-v2` pipeline without
+importing PyTorch, Transformers, or Sentence Transformers. It uses the same 256-token limit
+(including special tokens), attention-mask mean pooling, L2 normalization, and 384 output
+dimensions. The normal local provider remains `sentence_transformers`; changing providers does
+not modify stored vectors automatically.
+
+The model is pinned to Hugging Face revision
+`1110a243fdf4706b3f48f1d95db1a4f5529b4d41`. Artifact SHA-256 checksums live in
+`backend/embedding-artifacts.json`, and the downloader refuses mismatched files:
+
+```powershell
+backend\.venv\Scripts\python.exe backend\tools\download_embedding_artifacts.py backend\.models\minilm
+```
+
+To select it after downloading the artifacts:
+
+```env
+EMBEDDING_PROVIDER=onnx
+EMBEDDING_ONNX_MODEL_PATH=.models/minilm/model.onnx
+EMBEDDING_ONNX_TOKENIZER_PATH=.models/minilm/tokenizer.json
+EMBEDDING_ONNX_BATCH_SIZE=8
+EMBEDDING_ONNX_MAX_SEQUENCE_LENGTH=256
+EMBEDDING_ONNX_INTRA_OP_THREADS=1
+EMBEDDING_ONNX_INTER_OP_THREADS=1
+```
+
+`requirements-deploy.txt` intentionally excludes `torch`, `transformers`, and
+`sentence-transformers`. Keep `requirements.txt` for local compatibility comparisons. Run the
+real-model comparison separately from automated tests with `tools/compare_embedding_providers.py`.
+Compatibility requires a maximum component difference no greater than `1e-4`, same-text cosine
+agreement of at least `0.99999`, and identical ranking for the representative retrieval cases.
+These tolerances allow harmless FP32 runtime variation while rejecting changes large enough to
+risk mixing different embedding spaces.
+
+The disposable `Dockerfile.benchmark` installs only deployment dependencies, verifies the heavy
+packages are absent, and runs the full-process benchmark. It is a feasibility tool, not a
+production image. An operating-system OOM kill cannot be caught reliably by application code.
+
 ## Grounded Answer Generation
 
 The initial LLM provider is Groq:

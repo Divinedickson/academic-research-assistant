@@ -1,4 +1,5 @@
 import math
+import threading
 from dataclasses import dataclass
 from typing import Protocol
 
@@ -55,11 +56,106 @@ class SentenceTransformersEmbeddingProvider:
         return [embedding.astype(float).tolist() for embedding in embeddings]
 
 
-def get_embedding_provider():
-    if settings.EMBEDDING_PROVIDER != 'sentence_transformers':
-        raise EmbeddingError('Configured embedding provider is not supported.')
+class OnnxEmbeddingProvider:
+    """Direct ONNX implementation of the existing MiniLM sentence pipeline."""
 
-    return SentenceTransformersEmbeddingProvider()
+    _session = None
+    _tokenizer = None
+    _load_lock = threading.Lock()
+
+    def __init__(self, model_name=None, dimensions=None):
+        self.model_name = model_name or settings.EMBEDDING_MODEL_NAME
+        self.dimensions = dimensions or settings.EMBEDDING_DIMENSIONS
+
+    def _get_runtime(self):
+        cls = self.__class__
+        if cls._session is not None:
+            return cls._session, cls._tokenizer
+
+        with cls._load_lock:
+            if cls._session is None:
+                try:
+                    import onnxruntime as ort
+                    from tokenizers import Tokenizer
+                except ImportError as exc:
+                    raise EmbeddingError('The ONNX embedding runtime is not installed.') from exc
+
+                model_path = settings.EMBEDDING_ONNX_MODEL_PATH
+                tokenizer_path = settings.EMBEDDING_ONNX_TOKENIZER_PATH
+                if not model_path or not tokenizer_path:
+                    raise EmbeddingError('The ONNX embedding artifacts are not configured.')
+
+                options = ort.SessionOptions()
+                options.intra_op_num_threads = settings.EMBEDDING_ONNX_INTRA_OP_THREADS
+                options.inter_op_num_threads = settings.EMBEDDING_ONNX_INTER_OP_THREADS
+                options.execution_mode = ort.ExecutionMode.ORT_SEQUENTIAL
+                cls._session = ort.InferenceSession(
+                    model_path,
+                    sess_options=options,
+                    providers=['CPUExecutionProvider'],
+                )
+                cls._tokenizer = Tokenizer.from_file(tokenizer_path)
+                cls._tokenizer.enable_truncation(
+                    max_length=settings.EMBEDDING_ONNX_MAX_SEQUENCE_LENGTH,
+                    strategy='longest_first',
+                )
+                cls._tokenizer.enable_padding(pad_id=0, pad_token='[PAD]')
+
+        return cls._session, cls._tokenizer
+
+    def embed_texts(self, texts):
+        if not texts:
+            return []
+
+        import numpy as np
+
+        session, tokenizer = self._get_runtime()
+        results = []
+        batch_size = settings.EMBEDDING_ONNX_BATCH_SIZE
+        input_names = {item.name for item in session.get_inputs()}
+
+        for start in range(0, len(texts), batch_size):
+            encodings = tokenizer.encode_batch(texts[start:start + batch_size])
+            input_ids = np.asarray([item.ids for item in encodings], dtype=np.int64)
+            attention_mask = np.asarray(
+                [item.attention_mask for item in encodings],
+                dtype=np.int64,
+            )
+            inputs = {'input_ids': input_ids, 'attention_mask': attention_mask}
+            if 'token_type_ids' in input_names:
+                inputs['token_type_ids'] = np.asarray(
+                    [item.type_ids for item in encodings],
+                    dtype=np.int64,
+                )
+
+            token_embeddings = session.run(None, inputs)[0]
+            expanded_mask = attention_mask[..., None].astype(np.float32)
+            pooled = (token_embeddings * expanded_mask).sum(axis=1)
+            pooled /= np.clip(expanded_mask.sum(axis=1), 1e-9, None)
+            norms = np.linalg.norm(pooled, axis=1, keepdims=True)
+            if np.any(norms == 0):
+                raise EmbeddingError('Embedding provider returned a zero vector.')
+            pooled /= norms
+
+            if pooled.shape[1] != self.dimensions:
+                raise EmbeddingError(
+                    f'Embedding model returned {pooled.shape[1]} dimensions, '
+                    f'expected {self.dimensions}.',
+                )
+            results.extend(pooled.astype(float).tolist())
+
+        return results
+
+
+def get_embedding_provider():
+    providers = {
+        'sentence_transformers': SentenceTransformersEmbeddingProvider,
+        'onnx': OnnxEmbeddingProvider,
+    }
+    provider_class = providers.get(settings.EMBEDDING_PROVIDER)
+    if provider_class is None:
+        raise EmbeddingError('Configured embedding provider is not supported.')
+    return provider_class()
 
 
 def _validate_embedding_dimensions(embeddings, dimensions):

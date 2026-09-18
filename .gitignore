@@ -18,6 +18,7 @@ env/
 db.sqlite3
 media/
 staticfiles/
+.models/
 
 # Environment and secrets
 .env

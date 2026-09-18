@@ -1,6 +1,7 @@
 from .chunking import Chunk, chunk_pages
 from .embeddings import (
     EmbeddingError,
+    OnnxEmbeddingProvider,
     SentenceTransformersEmbeddingProvider,
     embed_document,
     get_embedding_provider,
@@ -24,6 +25,7 @@ __all__ = [
     'Chunk',
     'DocumentProcessingError',
     'EmbeddingError',
+    'OnnxEmbeddingProvider',
     'ExtractedPage',
     'LLMAuthenticationError',
     'LLMConfigurationError',
