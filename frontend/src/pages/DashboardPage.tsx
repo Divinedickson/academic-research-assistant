@@ -1,6 +1,6 @@
 import { type FormEvent, useCallback, useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { ApiError } from '../api/client'
+import { getApiErrorMessage } from '../api/client'
 import {
   type ResearchCollection,
   createCollection,
@@ -9,14 +9,6 @@ import {
   updateCollection,
 } from '../api/documents'
 import { useAuth } from '../auth/useAuth'
-
-function getErrorMessage(error: unknown) {
-  if (error instanceof ApiError && typeof error.data === 'object' && error.data) {
-    return Object.values(error.data).flat().join(' ')
-  }
-
-  return 'Something went wrong.'
-}
 
 export function DashboardPage() {
   const navigate = useNavigate()
@@ -36,7 +28,7 @@ export function DashboardPage() {
       setCollections(collectionResponse)
       setError('')
     } catch (caughtError) {
-      setError(getErrorMessage(caughtError))
+      setError(getApiErrorMessage(caughtError))
     } finally {
       setIsLoading(false)
     }
@@ -63,7 +55,7 @@ export function DashboardPage() {
       setName('')
       setDescription('')
     } catch (caughtError) {
-      setError(getErrorMessage(caughtError))
+      setError(getApiErrorMessage(caughtError))
     } finally {
       setIsSubmitting(false)
     }
@@ -85,7 +77,7 @@ export function DashboardPage() {
       setEditingId(null)
       setEditingName('')
     } catch (caughtError) {
-      setError(getErrorMessage(caughtError))
+      setError(getApiErrorMessage(caughtError))
     }
   }
 
@@ -100,14 +92,14 @@ export function DashboardPage() {
       await deleteCollection(collection.id)
       setCollections((current) => current.filter((item) => item.id !== collection.id))
     } catch (caughtError) {
-      setError(getErrorMessage(caughtError))
+      setError(getApiErrorMessage(caughtError))
     }
   }
 
   return (
     <div className="page-stack">
       <section className="panel">
-        <p className="eyebrow">Protected dashboard</p>
+        <p className="eyebrow">Your workspace</p>
         <h1>Research collections</h1>
         <p>You are signed in as {user?.username}.</p>
         <button className="button" type="button" onClick={handleLogout}>

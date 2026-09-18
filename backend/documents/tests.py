@@ -273,6 +273,12 @@ class DocumentApiTests(APITestCase):
         self.assertTrue(document.file.name.startswith(f'documents/user_{self.user.id}/'))
         self.assertTrue(document.file.storage.exists(document.file.name))
 
+        list_response = self.client.get(
+            reverse('collection-documents', kwargs={'collection_id': collection.id}),
+        )
+        self.assertEqual(list_response.status_code, status.HTTP_200_OK)
+        self.assertEqual(list_response.data, [response.data])
+
     def test_non_pdf_extension_is_rejected(self):
         collection = self.create_collection()
 
@@ -563,6 +569,24 @@ class DocumentProcessingApiTests(APITestCase):
         self.assertEqual(document.processing_status, Document.ProcessingStatus.READY)
         self.assertEqual(document.chunks.count(), 1)
         self.assertNotEqual(first_chunk_ids, list(document.chunks.values_list('id', flat=True)))
+
+    def test_reprocessing_invalidates_existing_embedding_state(self):
+        document = self.create_document(['Embedded text. ' * 20])
+        process_document(document)
+        document.chunks.update(
+            embedding=vector(),
+            embedding_model='fake-model',
+            embedded_at=timezone.now(),
+        )
+        document.embedding_status = Document.EmbeddingStatus.EMBEDDED
+        document.save(update_fields=['embedding_status'])
+
+        response = self.client.post(reverse('document-process', kwargs={'pk': document.id}))
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        document.refresh_from_db()
+        self.assertEqual(document.embedding_status, Document.EmbeddingStatus.NOT_EMBEDDED)
+        self.assertFalse(document.chunks.filter(embedding__isnull=False).exists())
 
     def test_transaction_rollback_prevents_partial_chunks_after_failure(self):
         document = self.create_document(['Rollback text. ' * 30])

@@ -1,17 +1,7 @@
 import { type FormEvent, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { ApiError } from '../api/client'
+import { getApiErrorMessage } from '../api/client'
 import { useAuth } from '../auth/useAuth'
-
-function formatApiError(error: unknown) {
-  if (!(error instanceof ApiError) || typeof error.data !== 'object' || !error.data) {
-    return 'Unable to register right now.'
-  }
-
-  return Object.values(error.data)
-    .flat()
-    .join(' ')
-}
 
 export function RegisterPage() {
   const navigate = useNavigate()
@@ -37,7 +27,7 @@ export function RegisterPage() {
       })
       navigate('/dashboard')
     } catch (caughtError) {
-      setError(formatApiError(caughtError))
+      setError(getApiErrorMessage(caughtError, 'Unable to register right now.'))
     } finally {
       setIsSubmitting(false)
     }

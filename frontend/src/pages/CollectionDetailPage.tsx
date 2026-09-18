@@ -1,6 +1,6 @@
 import { type FormEvent, useCallback, useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { ApiError } from '../api/client'
+import { getApiErrorMessage } from '../api/client'
 import {
   type CollectionAnswerResponse,
   type Document,
@@ -28,14 +28,6 @@ function formatFileSize(bytes: number) {
   }
 
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
-}
-
-function getErrorMessage(error: unknown) {
-  if (error instanceof ApiError && typeof error.data === 'object' && error.data) {
-    return Object.values(error.data).flat().join(' ')
-  }
-
-  return 'Something went wrong.'
 }
 
 export function CollectionDetailPage() {
@@ -73,7 +65,7 @@ export function CollectionDetailPage() {
       setDocuments(documentResponse)
       setError('')
     } catch (caughtError) {
-      setError(getErrorMessage(caughtError))
+      setError(getApiErrorMessage(caughtError))
     } finally {
       setIsLoading(false)
     }
@@ -86,6 +78,7 @@ export function CollectionDetailPage() {
 
   async function handleUpload(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
+    const form = event.currentTarget
 
     if (!file) {
       setError('Choose a PDF file to upload.')
@@ -100,9 +93,9 @@ export function CollectionDetailPage() {
       setDocuments((current) => [document, ...current])
       setTitle('')
       setFile(null)
-      event.currentTarget.reset()
+      form.reset()
     } catch (caughtError) {
-      setError(getErrorMessage(caughtError))
+      setError(getApiErrorMessage(caughtError))
     } finally {
       setIsUploading(false)
     }
@@ -124,7 +117,7 @@ export function CollectionDetailPage() {
         return next
       })
     } catch (caughtError) {
-      setError(getErrorMessage(caughtError))
+      setError(getApiErrorMessage(caughtError))
     }
   }
 
@@ -143,7 +136,7 @@ export function CollectionDetailPage() {
         return next
       })
     } catch (caughtError) {
-      setError(getErrorMessage(caughtError))
+      setError(getApiErrorMessage(caughtError))
     } finally {
       setProcessingDocumentId(null)
     }
@@ -159,7 +152,7 @@ export function CollectionDetailPage() {
         current.map((item) => (item.id === document.id ? embeddedDocument : item)),
       )
     } catch (caughtError) {
-      setError(getErrorMessage(caughtError))
+      setError(getApiErrorMessage(caughtError))
     } finally {
       setEmbeddingDocumentId(null)
     }
@@ -184,7 +177,7 @@ export function CollectionDetailPage() {
         [document.id]: chunks,
       }))
     } catch (caughtError) {
-      setError(getErrorMessage(caughtError))
+      setError(getApiErrorMessage(caughtError))
     }
   }
 
@@ -201,7 +194,7 @@ export function CollectionDetailPage() {
       setSearchResults(response.results)
       setScoreDescription(response.score_description)
     } catch (caughtError) {
-      setError(getErrorMessage(caughtError))
+      setError(getApiErrorMessage(caughtError))
     } finally {
       setIsSearching(false)
     }
@@ -220,7 +213,7 @@ export function CollectionDetailPage() {
       })
       setAnswerResponse(response)
     } catch (caughtError) {
-      setAskError(getErrorMessage(caughtError))
+      setAskError(getApiErrorMessage(caughtError))
     } finally {
       setIsAsking(false)
     }

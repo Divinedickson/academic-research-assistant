@@ -1,9 +1,5 @@
-import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { API_BASE_URL } from '../api/client'
 import { useAuth } from '../auth/useAuth'
-
-type HealthState = 'checking' | 'online' | 'offline'
 
 const features = [
   {
@@ -36,41 +32,6 @@ const limitations = [
 
 export function HomePage() {
   const { isAuthenticated } = useAuth()
-  const [healthState, setHealthState] = useState<HealthState>('checking')
-  const [message, setMessage] = useState('Checking backend health')
-
-  useEffect(() => {
-    const controller = new AbortController()
-
-    async function checkBackendHealth() {
-      try {
-        const response = await fetch(`${API_BASE_URL}/api/health/`, {
-          signal: controller.signal,
-        })
-
-        if (!response.ok) {
-          throw new Error(`Backend returned ${response.status}`)
-        }
-
-        const data = await response.json()
-        setHealthState(data.status === 'ok' ? 'online' : 'offline')
-        setMessage(
-          data.status === 'ok'
-            ? 'Backend API available'
-            : 'Backend responded with an unexpected status',
-        )
-      } catch {
-        if (!controller.signal.aborted) {
-          setHealthState('offline')
-          setMessage('Backend API not reachable')
-        }
-      }
-    }
-
-    checkBackendHealth()
-
-    return () => controller.abort()
-  }, [])
 
   return (
     <div className="landing-page">
@@ -97,14 +58,6 @@ export function HomePage() {
             </a>
           </div>
         </div>
-        <aside className="hero-panel" aria-label="System status">
-          <div className={`status-indicator ${healthState}`} aria-live="polite">
-            <span aria-hidden="true" />
-            <strong>{healthState}</strong>
-          </div>
-          <p>{message}</p>
-          <code>{API_BASE_URL}/api/health/</code>
-        </aside>
       </section>
 
       <section className="landing-section" aria-labelledby="features-heading">
@@ -115,6 +68,7 @@ export function HomePage() {
         <div className="feature-grid">
           {features.map((feature) => (
             <article className="feature-card" key={feature.title}>
+              <span className="feature-mark" aria-hidden="true" />
               <h3>{feature.title}</h3>
               <p>{feature.description}</p>
             </article>

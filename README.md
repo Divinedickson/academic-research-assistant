@@ -2,7 +2,7 @@
 
 A full-stack research assistant for academic literature. The application will let users upload legally obtained or open-access academic PDFs, ask questions about their contents, and receive grounded answers with citations.
 
-This repository is being implemented in milestones. Milestone 7 adds grounded answer generation using a replaceable external LLM provider.
+The implemented application includes authentication, private research collections, secure PDF uploads, page-aware extraction and chunking, local embeddings, semantic retrieval, and grounded answer generation through a replaceable external LLM provider.
 
 ## Current Stack
 
@@ -33,17 +33,19 @@ python -m pip install -r requirements.txt
 python manage.py runserver
 ```
 
-The API health endpoint is available at:
+The lightweight application health endpoint is available at:
 
 ```text
 http://localhost:8000/api/health/
 ```
 
-The database health endpoint is available at:
+The database health endpoint verifies that Django can query PostgreSQL:
 
 ```text
 http://localhost:8000/api/health/database/
 ```
+
+These endpoints are retained for local diagnostics and future deployment monitoring. The public frontend does not use them as a connectivity demonstration.
 
 Authentication endpoints:
 
@@ -238,4 +240,14 @@ Do not paste the API key into chat, commit it, or put it in frontend code.
 
 The frontend keeps the short-lived access token in memory. The refresh token is stored in `localStorage` so a page refresh can restore the session through `/api/auth/token/refresh/`.
 
-This follows the normal Simple JWT JSON response flow and avoids adding a custom cookie/CSRF system in this milestone. The tradeoff is that `localStorage` can be exposed by cross-site scripting bugs, so future frontend work should keep user-generated HTML out of the DOM and revisit HttpOnly refresh-token cookies with CSRF protection before production.
+This follows the normal Simple JWT JSON response flow and avoids adding a custom cookie/CSRF system. The tradeoff is that `localStorage` can be exposed by cross-site scripting bugs, so future frontend work should keep user-generated HTML out of the DOM and revisit HttpOnly refresh-token cookies with CSRF protection before production.
+
+## Current Limitations
+
+- PDF processing, embedding, and answer generation run synchronously and can occupy a web request.
+- Scanned and image-only PDFs require OCR, which is not implemented.
+- Refresh tokens are stored in `localStorage`; HttpOnly cookie storage with CSRF protection should be evaluated before production.
+- Uploaded files use Django media storage. Production needs private object storage or an authenticated download path, malware scanning, and retention controls.
+- Groq receives the question and selected source excerpts. Provider terms, retention, regional requirements, and rate limits must be reviewed for the intended deployment.
+- Citation validation confirms that cited source IDs were retrieved; it does not prove that every generated claim is supported.
+- Conversation history, streaming responses, background workers, deployment automation, and automatic summaries are not implemented.

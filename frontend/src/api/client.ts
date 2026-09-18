@@ -17,6 +17,14 @@ export class ApiError extends Error {
   }
 }
 
+export function getApiErrorMessage(error: unknown, fallback = 'Something went wrong.') {
+  if (!(error instanceof ApiError) || typeof error.data !== 'object' || !error.data) {
+    return fallback
+  }
+
+  return Object.values(error.data).flat().join(' ') || fallback
+}
+
 class ApiClient {
   private accessToken: string | null = null
   private unauthorizedHandler: UnauthorizedHandler | null = null
