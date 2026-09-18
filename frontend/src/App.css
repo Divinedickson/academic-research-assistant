@@ -3,24 +3,24 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 32px;
+  padding: 24px 32px 48px;
 }
 
 .top-nav {
   width: min(100%, 1120px);
-  min-height: 72px;
+  min-height: 64px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 24px;
   margin: 0 auto;
-  padding: 16px 32px 0;
+  padding: 12px 32px 0;
 }
 
 .brand-link {
   color: var(--color-text);
   font-size: 16px;
-  font-weight: 800;
+  font-weight: 600;
   text-decoration: none;
 }
 
@@ -35,7 +35,7 @@
 .top-nav a,
 .panel a {
   color: var(--color-primary);
-  font-weight: 700;
+  font-weight: 600;
   text-decoration: none;
 }
 
@@ -76,8 +76,8 @@ summary:focus-visible {
 .eyebrow {
   margin: 0 0 10px;
   font-size: 13px;
-  font-weight: 800;
-  letter-spacing: 0;
+  font-weight: 600;
+  letter-spacing: 0.04em;
   color: var(--color-accent);
   text-transform: uppercase;
 }
@@ -86,6 +86,8 @@ h1 {
   margin: 0 0 24px;
   color: var(--color-text);
   font-size: 34px;
+  font-weight: 600;
+  letter-spacing: -0.015em;
   line-height: 1.15;
 }
 
@@ -93,6 +95,8 @@ h2 {
   margin: 0 0 16px;
   color: var(--color-text);
   font-size: 24px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
   line-height: 1.2;
 }
 
@@ -100,6 +104,7 @@ h3 {
   margin: 0 0 8px;
   color: var(--color-text);
   font-size: 18px;
+  font-weight: 600;
   line-height: 1.25;
 }
 
@@ -111,32 +116,35 @@ h3 {
 .landing-page {
   width: min(100%, 1120px);
   display: grid;
-  gap: 40px;
+  gap: 28px;
 }
 
 .landing-hero {
-  min-height: 500px;
   display: flex;
   align-items: center;
-  padding: 56px 0 32px;
+  padding: clamp(48px, 7vw, 88px) 0 clamp(40px, 6vw, 72px);
 }
 
 .hero-copy {
-  max-width: 720px;
+  max-width: 760px;
 }
 
 .hero-copy h1 {
-  max-width: 760px;
+  max-width: 18ch;
   margin-bottom: 20px;
-  font-size: 52px;
-  letter-spacing: 0;
+  font-size: clamp(44px, 4.5vw, 52px);
+  font-weight: 600;
+  letter-spacing: -0.025em;
+  text-wrap: balance;
 }
 
 .hero-description {
-  max-width: 680px;
+  max-width: 63ch;
   margin: 0;
   color: var(--color-text-secondary);
-  font-size: 19px;
+  font-size: 18px;
+  line-height: 1.65;
+  text-wrap: pretty;
 }
 
 .landing-section {
@@ -209,7 +217,7 @@ h3 {
   border-radius: 999px;
   background: #DBEAFE;
   color: var(--color-primary-hover);
-  font-weight: 800;
+  font-weight: 600;
 }
 
 .workflow-list p {
@@ -251,7 +259,7 @@ h3 {
   background: var(--color-card);
   color: var(--color-text);
   font: inherit;
-  font-weight: 700;
+  font-weight: 600;
   cursor: pointer;
   text-decoration: none;
   transition: background-color 120ms ease, border-color 120ms ease, color 120ms ease;
@@ -299,7 +307,7 @@ h3 {
   display: grid;
   gap: 6px;
   color: var(--color-text);
-  font-weight: 700;
+  font-weight: 500;
 }
 
 .auth-form input,
@@ -352,7 +360,7 @@ h3 {
 
 .user-details dt {
   color: var(--color-text-secondary);
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .user-details dd {
@@ -492,7 +500,7 @@ h3 {
 .citation-list summary,
 .evidence-details summary {
   color: var(--color-text);
-  font-weight: 700;
+  font-weight: 600;
   cursor: pointer;
 }
 
@@ -505,7 +513,7 @@ h3 {
   .top-nav {
     align-items: flex-start;
     flex-direction: column;
-    padding: 16px 20px 0;
+    padding: 12px 20px 0;
   }
 
   .nav-actions {
@@ -514,16 +522,15 @@ h3 {
   }
 
   .app-shell {
-    padding: 24px 20px;
+    padding: 20px 20px 40px;
   }
 
   .landing-hero {
-    min-height: auto;
-    padding: 36px 0 20px;
+    padding: 36px 0 32px;
   }
 
   .hero-copy h1 {
-    font-size: 40px;
+    font-size: clamp(34px, 9vw, 40px);
   }
 
   .hero-description {
@@ -545,7 +552,7 @@ h3 {
 
 @media (max-width: 480px) {
   .hero-copy h1 {
-    font-size: 34px;
+    font-size: clamp(30px, 9vw, 34px);
   }
 
   .actions,

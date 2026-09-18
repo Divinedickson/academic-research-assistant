@@ -38,10 +38,10 @@ export function HomePage() {
       <section className="landing-hero">
         <div className="hero-copy">
           <p className="eyebrow">Academic Research Assistant</p>
-          <h1>Explore research papers. Find answers backed by evidence.</h1>
+          <h1>Research papers, clearer answers.</h1>
           <p className="hero-description">
-            Upload academic PDFs, search across your collection by meaning, and ask questions with
-            answers linked to supporting passages and PDF page numbers.
+            Organize academic PDFs, search beyond keywords, and ask questions with answers linked
+            to the original evidence.
           </p>
           <div className="actions">
             {isAuthenticated ? (
