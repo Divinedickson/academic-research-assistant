@@ -397,7 +397,7 @@ export function CollectionDetailPage() {
         <h2>Ask this collection</h2>
         <p>
           Your question and selected excerpts from embedded papers will be sent to an external AI
-          provider to draft a grounded answer with citations.
+          service to draft an AI-generated answer with citations.
         </p>
         <form className="auth-form" onSubmit={handleAsk}>
           <label>
@@ -426,7 +426,7 @@ export function CollectionDetailPage() {
 
         {answerResponse ? (
           <div className="answer-box">
-            <p className="status-note">Model: {answerResponse.model}</p>
+            <p className="status-note">Generated from retrieved evidence</p>
             {answerResponse.insufficient_evidence ? (
               <p className="form-error">{answerResponse.answer}</p>
             ) : (
@@ -451,7 +451,7 @@ export function CollectionDetailPage() {
 
             {answerResponse.retrieved_evidence.length > 0 ? (
               <details className="evidence-details">
-                <summary>Retrieved evidence sent to the AI provider</summary>
+                <summary>Retrieved evidence sent to the external AI service</summary>
                 <div className="citation-list">
                   {answerResponse.retrieved_evidence.map((evidence) => (
                     <details key={evidence.source_id}>

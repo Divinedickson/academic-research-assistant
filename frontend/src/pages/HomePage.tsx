@@ -26,7 +26,7 @@ const workflowSteps = [
 const limitations = [
   'Scanned PDFs currently require OCR and are not supported.',
   'Generated answers can be incorrect; verify the cited passages.',
-  'Questions and selected excerpts are sent to an external AI provider when generating answers.',
+  'Questions and selected excerpts are sent to an external AI service when generating answers.',
   'Upload only papers you have permission to process.',
 ]
 

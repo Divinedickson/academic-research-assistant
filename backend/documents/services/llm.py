@@ -71,12 +71,12 @@ class GroqLLMProvider:
     def _validate_configuration(self):
         if not self.api_key:
             raise LLMConfigurationError(
-                'LLM provider is not configured. Add GROQ_API_KEY to backend/.env.',
+                'Answer generation is not configured. Please contact the administrator.',
             )
 
         if self.model_name not in self.supported_models:
             raise LLMConfigurationError(
-                'Configured LLM model is not in the supported Groq model allowlist.',
+                'Answer generation is not configured correctly. Please contact the administrator.',
             )
 
     def generate(self, messages, max_output_tokens, timeout_seconds):
@@ -106,40 +106,46 @@ class GroqLLMProvider:
                 timeout=timeout_seconds,
             )
         except requests.Timeout as exc:
-            raise LLMTimeoutError('The LLM provider timed out. Please try again.') from exc
+            raise LLMTimeoutError('The external AI service timed out. Please try again.') from exc
         except requests.RequestException as exc:
             raise LLMProviderUnavailableError(
-                'The LLM provider is unavailable. Please try again later.',
+                'The external AI service is unavailable. Please try again later.',
             ) from exc
 
         if response.status_code in {401, 403}:
-            raise LLMAuthenticationError('The LLM provider rejected the configured API key.')
+            raise LLMAuthenticationError(
+                'Answer generation is temporarily unavailable. Please contact the administrator.',
+            )
 
         if response.status_code == 429:
-            raise LLMRateLimitError('The LLM provider rate limit was reached. Please try again later.')
+            raise LLMRateLimitError(
+                'The external AI service is busy. Please try again later.',
+            )
 
         if response.status_code >= 500:
             raise LLMProviderUnavailableError(
-                'The LLM provider is unavailable. Please try again later.',
+                'The external AI service is unavailable. Please try again later.',
             )
 
         if response.status_code >= 400:
-            raise LLMError('The LLM provider could not generate an answer.')
+            raise LLMError('The external AI service could not generate an answer.')
 
         try:
             data = response.json()
             content = data['choices'][0]['message']['content']
         except (KeyError, IndexError, TypeError, ValueError) as exc:
-            raise LLMError('The LLM provider returned an invalid response.') from exc
+            raise LLMError('The external AI service returned an invalid response.') from exc
 
         if not isinstance(content, str) or not content.strip():
-            raise LLMError('The LLM provider returned an empty response.')
+            raise LLMError('The external AI service returned an empty response.')
 
         return LLMResponse(content=content.strip(), model=self.model_name)
 
 
 def get_llm_provider():
     if settings.LLM_PROVIDER != 'groq':
-        raise LLMConfigurationError('Configured LLM provider is not supported.')
+        raise LLMConfigurationError(
+            'Answer generation is not configured correctly. Please contact the administrator.',
+        )
 
     return GroqLLMProvider()

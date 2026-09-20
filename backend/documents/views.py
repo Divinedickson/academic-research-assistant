@@ -196,7 +196,7 @@ class CollectionAskView(APIView):
             return Response({'detail': str(exc)}, status=502)
         except AnswerGenerationError:
             return Response(
-                {'detail': 'The LLM provider returned an answer with invalid citations.'},
+                {'detail': 'The external AI service returned an answer with invalid citations.'},
                 status=502,
             )
 

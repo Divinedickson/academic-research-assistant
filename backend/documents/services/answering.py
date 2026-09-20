@@ -249,4 +249,4 @@ def answer_collection_question(collection: ResearchCollection, question, top_k=5
             model=response.model,
         )
 
-    raise LLMError('The LLM provider returned an invalid response.')
+    raise LLMError('The external AI service returned an invalid response.')
