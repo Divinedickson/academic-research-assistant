@@ -546,6 +546,24 @@ class DocumentProcessingApiTests(APITestCase):
         self.assertEqual(document.chunks.count(), 2)
         self.assertEqual(list(document.chunks.values_list('page_number', flat=True)), [1, 2])
 
+    def test_processing_does_not_require_storage_path_support(self):
+        document = self.create_document(['Remote storage text. ' * 30])
+        delegate = document.file.storage
+
+        class PathlessStorage:
+            def open(self, name, mode='rb'):
+                return delegate.open(name, mode)
+
+            def path(self, name):
+                raise NotImplementedError('Remote storage has no local path.')
+
+        document.file.storage = PathlessStorage()
+        process_document(document)
+
+        document.refresh_from_db()
+        self.assertEqual(document.processing_status, Document.ProcessingStatus.READY)
+        self.assertGreater(document.chunks.count(), 0)
+
     def test_failed_processing_status_transition_for_scanned_pdf(self):
         document = self.create_document(['', ''])
 

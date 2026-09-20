@@ -1,3 +1,7 @@
+import shutil
+import tempfile
+from pathlib import Path
+
 from django.conf import settings
 from django.db import transaction
 
@@ -15,7 +19,17 @@ def process_document(document):
     document.mark_processing()
 
     try:
-        pages, page_count = extract_pdf_pages(document.file.path)
+        with tempfile.NamedTemporaryFile(suffix='.pdf', delete=False) as temporary_pdf:
+            temporary_path = Path(temporary_pdf.name)
+            document.file.open('rb')
+            try:
+                shutil.copyfileobj(document.file, temporary_pdf)
+            finally:
+                document.file.close()
+        try:
+            pages, page_count = extract_pdf_pages(temporary_path)
+        finally:
+            temporary_path.unlink(missing_ok=True)
         chunks = chunk_pages(
             pages,
             chunk_size=settings.DOCUMENT_CHUNK_SIZE,

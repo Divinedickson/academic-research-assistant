@@ -35,6 +35,10 @@ This repository is being built milestone by milestone. Keep changes scoped to th
 - Backend-assigned source IDs and citation validation for retrieved source references
 - Collection detail question-and-answer panel with expandable citation passages
 - Public product homepage and a responsive blue-and-white workspace UI
+- Lightweight ONNX production embedding runtime with pinned artifacts
+- Production Docker runtime with Gunicorn, WhiteNoise, and pgvector startup verification
+- Environment-driven PostgreSQL, security, CORS, CSRF, and private S3-compatible storage settings
+- Vercel SPA routing and production API URL validation
 
 The health endpoints are intentionally retained for local diagnostics and future deployment
 monitoring. They are not presented as a user-facing product feature.
@@ -50,3 +54,5 @@ monitoring. They are not presented as a user-facing product feature.
   replaced.
 - Keep automated tests isolated from real embedding and LLM providers by using deterministic fakes.
 - Never read, print, or commit real values from `backend/.env`.
+- Production PDFs must use private external storage; Render's local filesystem is ephemeral.
+- Do not mix embeddings from incompatible model revisions or providers.

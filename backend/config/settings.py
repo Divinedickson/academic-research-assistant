@@ -14,6 +14,8 @@ import os
 from datetime import timedelta
 from pathlib import Path
 
+import dj_database_url
+from django.core.exceptions import ImproperlyConfigured
 from dotenv import load_dotenv
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -22,23 +24,46 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 load_dotenv(BASE_DIR / '.env')
 
 
+def env_bool(name, default=False):
+    return os.environ.get(name, str(default)).lower() in {'1', 'true', 'yes', 'on'}
+
+
+def env_list(name, default=''):
+    return [item.strip() for item in os.environ.get(name, default).split(',') if item.strip()]
+
+
+ENVIRONMENT = os.environ.get('DJANGO_ENVIRONMENT', 'development')
+IS_PRODUCTION = ENVIRONMENT == 'production'
+
+
+def require_production_settings(*names):
+    if not IS_PRODUCTION:
+        return
+    missing = [name for name in names if not os.environ.get(name)]
+    if missing:
+        raise ImproperlyConfigured(
+            f'Missing required production environment variables: {", ".join(missing)}',
+        )
+
+
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = os.environ.get(
+require_production_settings(
     'DJANGO_SECRET_KEY',
-    'django-insecure-local-development-key-change-me',
+    'DJANGO_ALLOWED_HOSTS',
+    'DATABASE_URL',
+    'CORS_ALLOWED_ORIGINS',
+    'CSRF_TRUSTED_ORIGINS',
 )
 
-# SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = os.environ.get('DJANGO_DEBUG', 'True') == 'True'
+SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', 'django-insecure-local-development-key-change-me')
 
-ALLOWED_HOSTS = [
-    host.strip()
-    for host in os.environ.get('DJANGO_ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
-    if host.strip()
-]
+# SECURITY WARNING: don't run with debug turned on in production!
+DEBUG = env_bool('DJANGO_DEBUG', not IS_PRODUCTION)
+
+ALLOWED_HOSTS = env_list('DJANGO_ALLOWED_HOSTS', 'localhost,127.0.0.1')
 
 
 # Application definition
@@ -68,6 +93,8 @@ MIDDLEWARE = [
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
+if ENVIRONMENT in {'build', 'production'}:
+    MIDDLEWARE.insert(1, 'whitenoise.middleware.WhiteNoiseMiddleware')
 
 ROOT_URLCONF = 'config.urls'
 
@@ -92,16 +119,29 @@ WSGI_APPLICATION = 'config.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': os.environ.get('POSTGRES_DB', 'academic_research_assistant'),
-        'USER': os.environ.get('POSTGRES_USER', 'academic_research_assistant'),
-        'PASSWORD': os.environ.get('POSTGRES_PASSWORD', 'academic_research_assistant_dev_password'),
-        'HOST': os.environ.get('POSTGRES_HOST', 'localhost'),
-        'PORT': os.environ.get('POSTGRES_PORT', '5432'),
+if os.environ.get('DATABASE_URL'):
+    DATABASES = {
+        'default': dj_database_url.config(
+            conn_max_age=int(os.environ.get('DATABASE_CONN_MAX_AGE', 60)),
+            conn_health_checks=True,
+            ssl_require=env_bool('DATABASE_SSL_REQUIRE', IS_PRODUCTION),
+        ),
     }
-}
+    DATABASES['default']['DISABLE_SERVER_SIDE_CURSORS'] = env_bool(
+        'DATABASE_DISABLE_SERVER_SIDE_CURSORS',
+        IS_PRODUCTION,
+    )
+else:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.postgresql',
+            'NAME': os.environ.get('POSTGRES_DB', 'academic_research_assistant'),
+            'USER': os.environ.get('POSTGRES_USER', 'academic_research_assistant'),
+            'PASSWORD': os.environ.get('POSTGRES_PASSWORD', 'academic_research_assistant_dev_password'),
+            'HOST': os.environ.get('POSTGRES_HOST', 'localhost'),
+            'PORT': os.environ.get('POSTGRES_PORT', '5432'),
+        },
+    }
 
 
 # Password validation
@@ -138,9 +178,47 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.2/howto/static-files/
 
-STATIC_URL = 'static/'
-MEDIA_URL = '/media/'
-MEDIA_ROOT = BASE_DIR / 'media'
+STATIC_URL = os.environ.get('DJANGO_STATIC_URL', '/static/')
+STATIC_ROOT = Path(os.environ.get('DJANGO_STATIC_ROOT') or BASE_DIR / 'staticfiles')
+MEDIA_URL = os.environ.get('DJANGO_MEDIA_URL', '/media/')
+MEDIA_ROOT = Path(os.environ.get('DJANGO_MEDIA_ROOT') or BASE_DIR / 'media')
+
+DOCUMENT_STORAGE_BACKEND = os.environ.get('DOCUMENT_STORAGE_BACKEND', 'filesystem')
+if IS_PRODUCTION and DOCUMENT_STORAGE_BACKEND != 's3':
+    raise ImproperlyConfigured('Production requires DOCUMENT_STORAGE_BACKEND=s3.')
+
+STORAGES = {
+    'staticfiles': {
+        'BACKEND': 'whitenoise.storage.CompressedManifestStaticFilesStorage',
+    },
+}
+if DOCUMENT_STORAGE_BACKEND == 's3':
+    require_production_settings(
+        'DOCUMENT_STORAGE_BUCKET',
+        'DOCUMENT_STORAGE_ENDPOINT_URL',
+        'DOCUMENT_STORAGE_ACCESS_KEY',
+        'DOCUMENT_STORAGE_SECRET_KEY',
+    )
+    STORAGES['default'] = {
+        'BACKEND': 'storages.backends.s3.S3Storage',
+        'OPTIONS': {
+            'bucket_name': os.environ.get('DOCUMENT_STORAGE_BUCKET'),
+            'endpoint_url': os.environ.get('DOCUMENT_STORAGE_ENDPOINT_URL'),
+            'access_key': os.environ.get('DOCUMENT_STORAGE_ACCESS_KEY'),
+            'secret_key': os.environ.get('DOCUMENT_STORAGE_SECRET_KEY'),
+            'region_name': os.environ.get('DOCUMENT_STORAGE_REGION', 'us-east-1'),
+            'signature_version': 's3v4',
+            'addressing_style': os.environ.get('DOCUMENT_STORAGE_ADDRESSING_STYLE', 'path'),
+            'default_acl': None,
+            'querystring_auth': True,
+            'file_overwrite': False,
+        },
+    }
+else:
+    STORAGES['default'] = {
+        'BACKEND': 'django.core.files.storage.FileSystemStorage',
+        'OPTIONS': {'location': MEDIA_ROOT, 'base_url': MEDIA_URL},
+    }
 
 DOCUMENT_UPLOAD_MAX_BYTES = int(os.environ.get('DOCUMENT_UPLOAD_MAX_BYTES', 10 * 1024 * 1024))
 DOCUMENT_CHUNK_SIZE = int(os.environ.get('DOCUMENT_CHUNK_SIZE', 1000))
@@ -188,14 +266,28 @@ LLM_GROQ_SUPPORTED_MODELS = [
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-CORS_ALLOWED_ORIGINS = [
-    origin.strip()
-    for origin in os.environ.get(
-        'CORS_ALLOWED_ORIGINS',
-        'http://localhost:5173,http://127.0.0.1:5173',
-    ).split(',')
-    if origin.strip()
-]
+CORS_ALLOWED_ORIGINS = env_list(
+    'CORS_ALLOWED_ORIGINS',
+    'http://localhost:5173,http://127.0.0.1:5173',
+)
+CSRF_TRUSTED_ORIGINS = env_list(
+    'CSRF_TRUSTED_ORIGINS',
+    'http://localhost:5173,http://127.0.0.1:5173',
+)
+
+SECURE_PROXY_SSL_HEADER = (
+    ('HTTP_X_FORWARDED_PROTO', 'https')
+    if env_bool('DJANGO_SECURE_PROXY_SSL_HEADER_ENABLED', IS_PRODUCTION)
+    else None
+)
+SECURE_SSL_REDIRECT = env_bool('DJANGO_SECURE_SSL_REDIRECT', IS_PRODUCTION)
+SESSION_COOKIE_SECURE = env_bool('DJANGO_SESSION_COOKIE_SECURE', IS_PRODUCTION)
+CSRF_COOKIE_SECURE = env_bool('DJANGO_CSRF_COOKIE_SECURE', IS_PRODUCTION)
+SECURE_HSTS_SECONDS = int(os.environ.get('DJANGO_SECURE_HSTS_SECONDS', 31536000 if IS_PRODUCTION else 0))
+SECURE_HSTS_INCLUDE_SUBDOMAINS = env_bool('DJANGO_SECURE_HSTS_INCLUDE_SUBDOMAINS', False)
+SECURE_HSTS_PRELOAD = env_bool('DJANGO_SECURE_HSTS_PRELOAD', False)
+SECURE_CONTENT_TYPE_NOSNIFF = True
+X_FRAME_OPTIONS = 'DENY'
 
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
