@@ -20,7 +20,10 @@ export class ApiError extends Error {
   }
 }
 
-export function getApiErrorMessage(error: unknown, fallback = 'Something went wrong.') {
+export function getApiErrorMessage(
+  error: unknown,
+  fallback = 'We could not complete that request. Please try again.',
+) {
   if (!(error instanceof ApiError) || typeof error.data !== 'object' || !error.data) {
     return fallback
   }

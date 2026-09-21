@@ -7,8 +7,8 @@ const features = [
     description: 'Keep papers together in focused research collections.',
   },
   {
-    title: 'Search beyond keywords',
-    description: 'Find relevant passages even when your question uses different wording.',
+    title: 'Ask in your own words',
+    description: 'Ask natural questions and find useful passages across your papers.',
   },
   {
     title: 'Check the evidence',
@@ -17,10 +17,10 @@ const features = [
 ]
 
 const workflowSteps = [
-  'Create a collection and upload a text-based PDF.',
-  'Process and embed the paper.',
-  'Search your collection or ask a research question.',
-  'Review the answer and its supporting sources.',
+  'Create a collection.',
+  'Upload your PDF papers.',
+  'Prepare each paper for questions.',
+  'Ask a question and review the supporting sources.',
 ]
 
 const limitations = [
@@ -40,8 +40,7 @@ export function HomePage() {
           <p className="eyebrow">Academic Research Assistant</p>
           <h1>Research papers, clearer answers.</h1>
           <p className="hero-description">
-            Organize academic PDFs, search beyond keywords, and ask questions with answers linked
-            to the original evidence.
+            Organize academic PDFs and ask questions with answers linked to the original evidence.
           </p>
           <div className="actions">
             {isAuthenticated ? (

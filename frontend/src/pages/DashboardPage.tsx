@@ -28,7 +28,9 @@ export function DashboardPage() {
       setCollections(collectionResponse)
       setError('')
     } catch (caughtError) {
-      setError(getApiErrorMessage(caughtError))
+      setError(
+        getApiErrorMessage(caughtError, 'Your collections could not be loaded. Please refresh the page.'),
+      )
     } finally {
       setIsLoading(false)
     }
@@ -55,7 +57,9 @@ export function DashboardPage() {
       setName('')
       setDescription('')
     } catch (caughtError) {
-      setError(getApiErrorMessage(caughtError))
+      setError(
+        getApiErrorMessage(caughtError, 'The collection could not be created. Please try again.'),
+      )
     } finally {
       setIsSubmitting(false)
     }
@@ -101,17 +105,19 @@ export function DashboardPage() {
       <section className="panel">
         <p className="eyebrow">Your workspace</p>
         <h1>Research collections</h1>
-        <p>You are signed in as {user?.username}.</p>
+        <p>Keep related papers together, prepare them, then ask questions across the collection.</p>
+        <p className="status-note">Signed in as {user?.username}</p>
         <button className="button" type="button" onClick={handleLogout}>
           Log out
         </button>
       </section>
 
       <section className="panel">
-        <h2>Create collection</h2>
+        <p className="step-label">Step 1</p>
+        <h2>Create a collection</h2>
         <form className="auth-form" onSubmit={handleCreateCollection}>
           <label>
-            Name
+            Collection name
             <input
               value={name}
               onChange={(event) => setName(event.target.value)}
@@ -119,7 +125,7 @@ export function DashboardPage() {
             />
           </label>
           <label>
-            Description
+            Short description <span className="optional-label">(optional)</span>
             <textarea
               value={description}
               onChange={(event) => setDescription(event.target.value)}
@@ -136,7 +142,12 @@ export function DashboardPage() {
       <section className="panel">
         <h2>Your collections</h2>
         {isLoading ? <p>Loading collections...</p> : null}
-        {!isLoading && collections.length === 0 ? <p>No collections yet.</p> : null}
+        {!isLoading && collections.length === 0 ? (
+          <div className="empty-state">
+            <h3>No collections yet</h3>
+            <p>Create one above to start organizing your papers.</p>
+          </div>
+        ) : null}
         <div className="item-list">
           {collections.map((collection) => (
             <article className="item-row" key={collection.id}>
@@ -168,7 +179,7 @@ export function DashboardPage() {
                       <Link to={`/collections/${collection.id}`}>{collection.name}</Link>
                     </h3>
                     <p>{collection.description || 'No description'}</p>
-                    <small>{collection.document_count} document(s)</small>
+                    <small>{collection.document_count} {collection.document_count === 1 ? 'paper' : 'papers'}</small>
                   </div>
                   <div className="row-actions">
                     <button

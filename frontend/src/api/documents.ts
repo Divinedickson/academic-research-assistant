@@ -31,25 +31,6 @@ export type DocumentChunk = {
   character_count: number
 }
 
-export type SemanticSearchResult = {
-  chunk_id: number
-  document_id: number
-  document_title: string
-  original_filename: string
-  page_number: number
-  chunk_index: number
-  content: string
-  cosine_distance: number
-  similarity_score: number
-}
-
-export type SemanticSearchResponse = {
-  query: string
-  top_k: number
-  score_description: string
-  results: SemanticSearchResult[]
-}
-
 export type AnswerCitation = {
   source_id: string
   chunk_id: number
@@ -142,13 +123,6 @@ export function embedDocument(id: number) {
 
 export function listDocumentChunks(id: number) {
   return apiClient.request<DocumentChunk[]>(`/api/documents/${id}/chunks/`)
-}
-
-export function searchCollection(collectionId: number, input: { query: string; top_k: number }) {
-  return apiClient.request<SemanticSearchResponse>(`/api/collections/${collectionId}/search/`, {
-    method: 'POST',
-    body: JSON.stringify(input),
-  })
 }
 
 export function askCollection(collectionId: number, input: { question: string; top_k: number }) {
