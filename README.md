@@ -1,5 +1,5 @@
 # Academic Research Assistant
-
+Link: https: https://academic-research-assistant-teal.vercel.app/
 A full-stack research assistant for academic literature. The application will let users upload legally obtained or open-access academic PDFs, ask questions about their contents, and receive grounded answers with citations.
 
 The implemented application includes authentication, private research collections, secure PDF uploads, page-aware extraction and chunking, local embeddings, semantic retrieval, and grounded answer generation through a replaceable external LLM provider.
